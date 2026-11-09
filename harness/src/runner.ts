@@ -19,8 +19,11 @@ import { loadTarget, type LoadedTarget } from "./targets/registry.js";
 import { prettyJSON, toJSONSafe } from "./util/json.js";
 import { createWorld, defaultConfig, type WorldConfig } from "./world.js";
 
-export type BackendFactory = (chainSeed: string) => Backend;
-export const simBackendFactory: BackendFactory = (seed) => new SimBackend({ seed });
+export interface BackendFactory {
+  name: string;
+  create(chainSeed: string): Backend | Promise<Backend>;
+}
+export const simBackendFactory: BackendFactory = { name: "nearsim", create: (seed) => new SimBackend({ seed }) };
 
 export interface RunOutcome {
   verdict: RunVerdict;
@@ -30,11 +33,15 @@ export interface RunOutcome {
 
 /** Execute one attack sequence in a brand-new world and check every invariant. */
 export async function evaluate(target: LoadedTarget, cfg: WorldConfig, steps: Step[], backendFactory: BackendFactory = simBackendFactory): Promise<RunOutcome> {
-  const backend = backendFactory(cfg.seed);
-  const world = await createWorld(backend, target, { ...cfg, blockTimeNs: backend.blockTimeNs });
-  const trace = await executeSequence(world, steps);
-  const verdict = await checkRun(world, trace);
-  return { verdict, trace, steps };
+  const backend = await backendFactory.create(cfg.seed);
+  try {
+    const world = await createWorld(backend, target, { ...cfg, blockTimeNs: backend.blockTimeNs });
+    const trace = await executeSequence(world, steps);
+    const verdict = await checkRun(world, trace);
+    return { verdict, trace, steps };
+  } finally {
+    await backend.dispose?.();
+  }
 }
 
 export interface Repro {
@@ -101,8 +108,7 @@ export async function runCampaign(opts: CampaignOptions): Promise<CampaignResult
   const { target, seed, runs } = opts;
   const maxSteps = opts.maxSteps ?? 20;
   const backendFactory = opts.backendFactory ?? simBackendFactory;
-  const probe = backendFactory("probe");
-  const cfg: WorldConfig = { ...defaultConfig(`agentfuzz/${seed}`, probe.blockTimeNs), ...opts.cfg };
+  const cfg: WorldConfig = { ...defaultConfig(`agentfuzz/${seed}`), ...opts.cfg };
   const ids = opts.invariants ?? INVARIANT_IDS;
 
   const cache = new Map<string, RunOutcome>();
@@ -152,7 +158,7 @@ export async function runCampaign(opts: CampaignOptions): Promise<CampaignResult
         seed,
         fcPath: details.counterexamplePath ?? undefined,
         numShrinks: details.numShrinks,
-        backend: backendFactory("probe").name,
+        backend: backendFactory.name,
         config: cfg,
         steps,
         attackClasses: [...new Set(steps.map(stepClass).filter((c): c is AttackClass => c !== "owner"))].sort(),
@@ -188,7 +194,7 @@ export async function runCampaign(opts: CampaignOptions): Promise<CampaignResult
     stepsExecuted,
     attackCounts,
     durationMs: Date.now() - started,
-    backend: probe.name,
+    backend: backendFactory.name,
     invariants: outcomes,
     config: cfg,
   };

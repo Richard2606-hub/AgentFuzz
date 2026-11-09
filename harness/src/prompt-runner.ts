@@ -124,13 +124,14 @@ export async function runPromptCampaign(opts: PromptOptions): Promise<PromptCamp
   let model = opts.planner.name;
 
   for (const s of opts.scenarios) {
-    const backend = factory(`prompt/${s.id}`);
+    const backend = await factory.create(`prompt/${s.id}`);
     const cfg: WorldConfig = { ...defaultConfig(`agentfuzz/prompt/${s.id}`, backend.blockTimeNs), ...opts.cfg };
     const world = await createWorld(backend, opts.target, cfg);
     let run: AgentRun;
     try {
       run = await runAgent(world, s, opts.planner);
     } catch (e) {
+      await backend.dispose?.();
       if (e instanceof NoCassetteError) {
         const r: PromptResult = { id: s.id, class: s.class, title: s.title, aims: s.attack.breaks, planner: opts.planner.name, model: "-", attempted: false, outcome: "skipped", violations: [], collateral: [], toolCalls: [], txs: [], note: e.message };
         results.push(r);
@@ -141,6 +142,7 @@ export async function runPromptCampaign(opts: PromptOptions): Promise<PromptCamp
     }
     model = run.model;
     const verdict = await checkRun(world, run.trace);
+    await backend.dispose?.();
     const violations = verdict.violations.filter((v) => PROMPT_LAYER_INVARIANTS.includes(v.invariant));
     const collateral = verdict.violations.filter((v) => !PROMPT_LAYER_INVARIANTS.includes(v.invariant));
     const sub = (t: string) => t.replaceAll("{{ATTACKER_PK}}", world.keys.attacker.publicKey).replaceAll("{{GUARD}}", world.cfg.guardId);

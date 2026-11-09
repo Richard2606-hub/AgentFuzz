@@ -94,17 +94,26 @@ export interface KeyPair {
   sign(message: Uint8Array): Uint8Array;
 }
 
+/** Every derived key pair, by public key (the sandbox backend signs with these). */
+const KEY_REGISTRY = new Map<string, KeyPair>();
+
+export function keyPairFor(publicKey: string): KeyPair | undefined {
+  return KEY_REGISTRY.get(publicKey);
+}
+
 /** Deterministic ed25519 key pair from an arbitrary label (e.g. `${seed}/agent/0`). */
 export function deriveKeyPair(label: string): KeyPair {
   const seed = sha256(`agentfuzz-key:${label}`);
   const priv = createPrivateKey({ key: Buffer.concat([PKCS8_ED25519_PREFIX, seed]), format: "der", type: "pkcs8" });
   const spki = createPublicKey(priv).export({ format: "der", type: "spki" });
   const pub = new Uint8Array(spki.subarray(spki.length - 32));
-  return {
+  const kp: KeyPair = {
     publicKey: `ed25519:${base58Encode(pub)}`,
     secretKey: `ed25519:${base58Encode(Uint8Array.from([...seed, ...pub]))}`,
     sign: (message) => new Uint8Array(edSign(null, message, priv)),
   };
+  KEY_REGISTRY.set(kp.publicKey, kp);
+  return kp;
 }
 
 export function ed25519Verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): boolean {

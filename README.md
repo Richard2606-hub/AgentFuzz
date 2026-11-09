@@ -157,9 +157,9 @@ Testnet scoreboard: `SCOREBOARD_CONTRACT_ID` (see `.env.example`; deploy your ow
 | What | Where |
 |------|-------|
 | Scoreboard contract | [`scoreboard.agentfuzz-28213.testnet`](https://testnet.nearblocks.io/address/scoreboard.agentfuzz-28213.testnet) |
-| Published scorecard | [`web/scorecard.json`](web/scorecard.json) / [`web/index.html`](web/index.html): run `af-42-eb64b61d45fc` (commit `2df8658f92f0`) |
-| Report SHA-256 | `eb64b61d45fc8a3483a2479bccbab5d6eb7acfbb539a9875eaa65d623f930766` |
-| Anchor transaction | [`54Z11CgKsLJsGREqEZEwvuqDxprwL8UDzv1qWCtUMq2A`](https://testnet.nearblocks.io/txns/54Z11CgKsLJsGREqEZEwvuqDxprwL8UDzv1qWCtUMq2A) |
+| Published scorecard | [`web/scorecard.json`](web/scorecard.json) / [`web/index.html`](web/index.html): run `af-42-827fed191f1a` (commit `039ef88a1c82`) |
+| Report SHA-256 | `827fed191f1ae1625885237e46f309b752f6783126760bfcf97e69a26bc54c2b` |
+| Anchor transaction | [`CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG`](https://testnet.nearblocks.io/txns/CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG) |
 <!-- anchor:end -->
 
 Check it yourself: `cd harness && node bin/agentfuzz.mjs verify ../web/scorecard.json` recomputes

@@ -19,6 +19,7 @@ import { c, statusBadge } from "./util/term.js";
 import { runMatrix } from "./matrix.js";
 import { loadCorpus, makePlanner, runPromptCampaign, type PromptCampaign, type PromptResult } from "./prompt-runner.js";
 import { cmdAnchor, cmdDemoOffline, cmdReport, cmdScoreboardDeploy, cmdVerify } from "./cli-report.js";
+import { sandboxBackendFactory, differential } from "./differential.js";
 import { llmConfigFromEnv, openaiClient, resolveModel } from "./agent/planners.js";
 import { generateCorpus } from "./generators/prompt.js";
 
@@ -122,12 +123,41 @@ async function cmdFuzz(flags: Flags) {
   return result.invariants.some((o) => o.status === "broken") && flags["fail-on-break"] ? 1 : 0;
 }
 
-async function cmdReplay(positional: string[]) {
+async function cmdDiff(flags: Flags) {
+  const targetName = str(flags, "target", "reference");
+  const seed = num(flags, "seed", 42);
+  const runs = num(flags, "runs", 20);
+  const maxSteps = num(flags, "max-steps", 10);
+  const target = loadTarget(targetName);
+  console.log(`${c.bold("AgentFuzz differential")} ${c.dim("·")} ${target.name} ${c.dim("·")} seed ${seed} ${c.dim("·")} runs ${runs}`);
+  let agrees = 0;
+  let disagrees = 0;
+  const rows = await differential({
+    target,
+    seed,
+    runs,
+    maxSteps,
+    onRow: (r) => {
+      const mark = r.agree ? c.green("✓") : c.red("✗ MISMATCH");
+      const diffStr = r.agree
+        ? c.dim(r.nearsim.length ? `both broke: ${r.nearsim.join(",")}` : "both hold")
+        : `nearsim: [${r.nearsim.join(",")}] vs sandbox: [${r.sandbox.join(",")}]`;
+      console.log(`  [${String(r.index + 1).padStart(3)}] ${mark} ${c.dim(`(${r.steps.length} steps)`)} ${diffStr}`);
+      if (r.agree) agrees++;
+      else disagrees++;
+    },
+  });
+  console.log(`\n  ${agrees}/${rows.length} sequences agreed between nearsim and nearcore sandbox.`);
+  return disagrees > 0 ? 1 : 0;
+}
+
+async function cmdReplay(positional: string[], flags: Flags) {
   const file = positional[0];
-  if (!file) throw new Error("usage: agentfuzz replay <repro.json>");
+  if (!file) throw new Error("usage: agentfuzz replay <repro.json> [--backend nearsim|sandbox]");
   const repro = loadRepro(file);
-  console.log(`${c.bold("AgentFuzz replay")} ${c.dim("·")} ${repro.target} ${c.dim("·")} ${repro.invariant} ${c.dim("·")} ${repro.steps.length} steps`);
-  const r = await replay(repro);
+  const backend = str(flags, "backend", "nearsim");
+  console.log(`${c.bold("AgentFuzz replay")} ${c.dim("·")} ${repro.target} ${c.dim("·")} ${repro.invariant} ${c.dim("·")} ${repro.steps.length} steps ${c.dim("·")} backend ${backend}`);
+  const r = await replay(repro, backend === "sandbox" ? sandboxBackendFactory : undefined);
   if (!r.wasmMatches) console.log(c.yellow("  warning: target wasm differs from the one the repro was recorded against"));
   for (const s of r.outcome.trace.steps) console.log(`  ${s.index + 1}. ${s.description}`);
   const v = r.outcome.verdict.violations.filter((x) => x.invariant === repro.invariant);
@@ -232,7 +262,9 @@ function help() {
 
   agentfuzz targets                         list built-in targets
   agentfuzz fuzz --target <name|file.wasm>  fuzz one guard  [--seed N] [--runs N] [--max-steps N] [--inv INV-1,INV-2] [--json]
-  agentfuzz replay <repro.json>             replay a minimised repro deterministically
+  agentfuzz replay <repro.json>             replay a minimised repro deterministically [--backend nearsim|sandbox]
+  agentfuzz diff                            differential test: run sequences against nearsim and nearcore sandbox
+                                            [--target reference] [--seed 42] [--runs 20] [--max-steps 10]
   agentfuzz prompt --target <name>          prompt-layer attacks (A1/A2) through the reference agent
                                             [--planner compromised|cassette|llm] [--live] [--record] [--only A1-00]
   agentfuzz matrix                          planted-bug matrix: every planted bug must be caught  [--seed N] [--runs N]
@@ -257,8 +289,10 @@ async function main() {
   switch (cmd) {
     case "fuzz":
       return cmdFuzz(flags);
+    case "diff":
+      return cmdDiff(flags);
     case "replay":
-      return cmdReplay(positional);
+      return cmdReplay(positional, flags);
     case "targets":
       return cmdTargets();
     case "prompt":

@@ -29,6 +29,8 @@ export interface Backend {
   /** All value transfers observed so far (the ledger invariant checkers read). */
   transfers(): ValueTransfer[];
   outcomes(): ReceiptOutcome[];
+  /** Release resources (e.g. stop a sandbox process). */
+  dispose?(): Promise<void>;
 }
 
 export const STORAGE_BYTE_COST = 10n ** 19n;
