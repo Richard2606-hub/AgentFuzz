@@ -63,7 +63,7 @@ function targetCard(t: TargetScore): string {
     )
     .join("");
   const prompt = t.prompt
-    ? `<h4>Prompt layer <span class="muted">· planner ${esc(t.prompt.planner)}${t.prompt.model !== t.prompt.planner ? ` (${esc(t.prompt.model)})` : ""}</span></h4>
+    ? `<h4>Prompt layer <span class="muted">· planner ${esc(t.prompt.planner)}${t.prompt.planner === "compromised" ? " (worst case: every injected instruction is executed)" : t.prompt.model !== t.prompt.planner ? ` (${esc(t.prompt.model)})` : ""}</span></h4>
       <p class="stats"><b>${t.prompt.scenarios}</b> attacks · planner hijacked <b>${t.prompt.hijacked}</b> · guard blocked <b class="okc">${t.prompt.blocked}</b> · breaches <b class="${t.prompt.breaches ? "badc" : "okc"}">${t.prompt.breaches}</b>${t.prompt.resisted ? ` · resisted ${t.prompt.resisted}` : ""}</p>
       <details${t.prompt.breaches ? " open" : ""}><summary>Per-scenario results</summary>
       <table class="compact"><thead><tr><th>ID</th><th>Class</th><th>Attack</th><th>Outcome</th></tr></thead><tbody>${t.prompt.results
@@ -101,7 +101,7 @@ main{max-width:1180px;margin:0 auto;padding:32px 20px 64px}a{color:var(--accent)
 header h1{margin:0;font-size:28px;letter-spacing:.3px}header h1 span{color:var(--accent)}
 .tag{color:var(--muted);margin:4px 0 20px}.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:28px}
 .meta div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}.meta b{display:block;color:var(--muted);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.6px}
-.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.small{font-size:12px}.muted{color:var(--muted)}.num{text-align:right;font-variant-numeric:tabular-nums}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.meta .mono,.meta a{word-break:break-all}td.mono{white-space:nowrap}.small{font-size:12px}.muted{color:var(--muted)}.num{text-align:right;font-variant-numeric:tabular-nums}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin:0 0 24px}
 .card-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:12px}.card h3{margin:0;font-size:22px}
 .verdict{padding:8px 14px;border-radius:999px;font-weight:600;white-space:nowrap}.verdict.ok{background:#173a26;color:var(--ok)}.verdict.bad{background:#3d1b1b;color:var(--bad)}

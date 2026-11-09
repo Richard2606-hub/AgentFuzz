@@ -49,7 +49,7 @@ export const stepArb: fc.Arbitrary<Step> = fc.oneof(
   { weight: 6, arbitrary: fc.nat(3).map((i): Step => ({ k: "extra", i })) },
   { weight: 3, arbitrary: fc.integer({ min: 1, max: 40 }).map((n): Step => ({ k: "drain", n })) },
   { weight: 4, arbitrary: fc.constant<Step>({ k: "exploit" }) },
-  { weight: 3, arbitrary: fc.constant<Step>({ k: "failPayee" }) },
+  { weight: 6, arbitrary: fc.constant<Step>({ k: "failPayee" }) },
   {
     weight: 3,
     arbitrary: fc
