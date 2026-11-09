@@ -151,6 +151,18 @@ prints the NearBlocks link; `make verify` reads it back.
 Testnet scoreboard: `SCOREBOARD_CONTRACT_ID` (see `.env.example`; deploy your own with
 `node bin/agentfuzz.mjs scoreboard-deploy`).
 
+### Live on NEAR testnet
+
+| What | Where |
+|------|-------|
+| Scoreboard contract | [`scoreboard.agentfuzz-28213.testnet`](https://testnet.nearblocks.io/address/scoreboard.agentfuzz-28213.testnet) |
+| Published scorecard | [`web/scorecard.json`](web/scorecard.json) / [`web/index.html`](web/index.html): run `af-42-6bb18a9bc6ab` |
+| Report SHA-256 | `6bb18a9bc6ab1641422a0eeff2579d5932c2dc66c4966453d6ddd67d4da0450e` |
+| Anchor transaction | [`F3vqNGemssbgeWBbgarPBMXzUk9WHKEczd4qxy5EsHA6`](https://testnet.nearblocks.io/txns/F3vqNGemssbgeWBbgarPBMXzUk9WHKEczd4qxy5EsHA6) |
+
+Check it yourself: `cd harness && node bin/agentfuzz.mjs verify ../web/scorecard.json` recomputes
+the hash, re-runs the campaign from the recorded seed and reads the record back from testnet.
+
 ## Without make
 
 ```bash

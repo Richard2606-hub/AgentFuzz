@@ -156,19 +156,20 @@ async fn inv4_owner_can_revoke_and_withdraw() -> anyhow::Result<()> {
     assert!(revoke.is_success(), "{revoke:?}");
     assert!(keys(&f).await?.is_empty(), "agent key survived revoke");
 
-    let free: near_sdk::json_types::U128 = f.worker.view(&f.guard_id, "get_free_balance").await?.json()?;
+    let free: String = f.worker.view(&f.guard_id, "get_free_balance").await?.json()?;
+    let free: u128 = free.parse()?;
     let before = f.owner.view_account().await?.balance.as_yoctonear();
     let wd = f
         .owner
         .call(&f.guard_id, "withdraw")
-        .args_json(json!({ "amount": free.0.to_string() }))
+        .args_json(json!({ "amount": free.to_string() }))
         .deposit(NearToken::from_yoctonear(1))
         .max_gas()
         .transact()
         .await?;
     assert!(wd.is_success(), "{wd:?}");
     let after = f.owner.view_account().await?.balance.as_yoctonear();
-    assert!(after + NearToken::from_millinear(10).as_yoctonear() > before + free.0, "owner did not receive the free balance");
+    assert!(after + NearToken::from_millinear(10).as_yoctonear() > before + free, "owner did not receive the free balance");
     Ok(())
 }
 

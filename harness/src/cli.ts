@@ -14,6 +14,7 @@ import { formatNear } from "./near/keys.js";
 import { loadRepro, replay, runCampaign, type CampaignEvent, type CampaignResult } from "./runner.js";
 import { listTargets, loadTarget, loadThirdPartyTargets, REPO_ROOT } from "./targets/registry.js";
 import { prettyJSON } from "./util/json.js";
+import { loadDotEnv } from "./util/dotenv.js";
 import { c, statusBadge } from "./util/term.js";
 import { runMatrix } from "./matrix.js";
 import { loadCorpus, makePlanner, runPromptCampaign, type PromptCampaign, type PromptResult } from "./prompt-runner.js";
@@ -251,6 +252,7 @@ Balances are in NEAR; e.g. ${formatNear(10n ** 24n)} = 1 NEAR`);
 
 async function main() {
   const { cmd, positional, flags } = parseArgs(process.argv.slice(2));
+  if (!flags["no-env"]) loadDotEnv(REPO_ROOT);
   await loadThirdPartyTargets();
   switch (cmd) {
     case "fuzz":
@@ -281,11 +283,15 @@ async function main() {
   }
 }
 
+// Set exitCode instead of calling process.exit(): exiting while undici keep-alive sockets are
+// closing trips a libuv assertion on Windows (src\win\async.c).
 main().then(
-  (code) => process.exit(code ?? 0),
+  (code) => {
+    process.exitCode = code ?? 0;
+  },
   (e) => {
     console.error(c.red(`error: ${e instanceof Error ? e.message : String(e)}`));
     if (process.env.AGENTFUZZ_DEBUG) console.error(e);
-    process.exit(1);
+    process.exitCode = 1;
   },
 );
