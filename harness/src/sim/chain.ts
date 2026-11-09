@@ -60,6 +60,8 @@ interface ActionReceipt {
   inputDataIds: string[];
   outputDataReceivers: { dataId: string; receiverId: string }[];
   isRefund: boolean;
+  /** Price at which this receipt's gas was reserved (inherited by child receipts). */
+  gasPrice: bigint;
 }
 
 type QueueItem = { kind: "action"; r: ActionReceipt } | { kind: "data"; dataId: string; data: Uint8Array | null };
@@ -189,7 +191,11 @@ export class SimChain {
     const sendGas = GAS.receiptCreation + tx.actions.reduce((s, a) => s + actionSendCost(a), 0n);
     const prepaid = tx.actions.reduce((s, a) => s + (a.type === "FunctionCall" ? a.gas : 0n), 0n);
     if (prepaid > GAS.maxPrepaid) return reject("Expired", "total prepaid gas exceeds 300 Tgas");
-    const gasCost = (2n * sendGas + prepaid) * GAS_PRICE;
+    // nearcore tx_cost: send fees are burnt at the current gas price; prepaid + exec gas is
+    // reserved at a pessimistically inflated price (1.03^depth) and refunded later. A
+    // function-call key's allowance is charged the whole reservation and never refunded.
+    const receiptGasPrice = pessimisticGasPrice(GAS_PRICE, tx.signerId === tx.receiverId ? 0n : 1n, prepaid);
+    const gasCost = sendGas * GAS_PRICE + (prepaid + sendGas) * receiptGasPrice;
     const deposit = tx.actions.reduce((s, a) => s + actionDeposit(a), 0n);
 
     if (key.permission.kind === "FunctionCall") {
@@ -226,6 +232,7 @@ export class SimChain {
         inputDataIds: [],
         outputDataReceivers: [],
         isRefund: false,
+        gasPrice: receiptGasPrice,
       },
     });
     return { txHash };
@@ -499,11 +506,14 @@ export class SimChain {
       }
     }
 
-    // Unused prepaid gas is refunded to the signer (credited directly; nearsim simplification).
+    // Gas refund to the signer: unused prepaid gas at the reserved price, plus the difference
+    // between the reserved and the actual price on burnt gas (credited directly; nearsim
+    // simplification of nearcore's refund receipts).
     const used = lastExec ? lastExec.usedGas : 0n;
     const unused = prepaid > used ? prepaid - used : 0n;
     const signer = this.accounts.get(r.signerId);
-    if (signer && unused > 0n && !r.isRefund) signer.amount += unused * GAS_PRICE;
+    const refund = unused * r.gasPrice + (r.gasPrice > GAS_PRICE ? burnt * (r.gasPrice - GAS_PRICE) : 0n);
+    if (signer && refund > 0n && !r.isRefund) signer.amount += refund;
 
     this.outcomes.push({
       receiptId: r.id,
@@ -534,6 +544,7 @@ export class SimChain {
       inputDataIds: [],
       outputDataReceivers: [],
       isRefund: false,
+      gasPrice: parent.gasPrice,
     };
   }
 
@@ -552,6 +563,16 @@ export class SimChain {
 }
 
 // ---------------------------------------------------------------------------- helpers
+
+/** nearcore `min_receipt_with_function_call_gas`: new_action_receipt + function_call base. */
+export const MIN_RECEIPT_WITH_FUNCTION_CALL_GAS = GAS.receiptCreation + GAS.actionFunctionCall;
+
+/** nearcore pessimistic gas price: price * (103/100)^(hop + prepaid / min_receipt_gas), exponent capped at 255. */
+export function pessimisticGasPrice(price: bigint, initialHop: bigint, prepaid: bigint): bigint {
+  let exponent = initialHop + prepaid / MIN_RECEIPT_WITH_FUNCTION_CALL_GAS;
+  if (exponent > 255n) exponent = 255n;
+  return (price * 103n ** exponent) / 100n ** exponent;
+}
 
 function actionDeposit(a: Action): bigint {
   if (a.type === "Transfer") return a.deposit;

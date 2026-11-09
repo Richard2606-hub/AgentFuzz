@@ -115,6 +115,17 @@ describe("nearsim executes real guard wasm", () => {
     expect(rejected).toBe("NotEnoughAllowance");
   });
 
+  it("charges allowances at nearcore's pessimistic gas price (300 Tgas ~ 1 NEAR, as observed on the sandbox)", () => {
+    const { chain, agent } = setup(); // agent allowance 0.1 NEAR
+    const max = chain.submit({ signerId: G, publicKey: agent.publicKey, receiverId: G, actions: [functionCall("pay", {}, 300n * 10n ** 12n)] });
+    expect(max.rejected?.kind).toBe("NotEnoughAllowance");
+    const cost = BigInt(/cost (\d+)/.exec(max.rejected!.message)![1]);
+    expect(cost).toBeGreaterThan(near("0.8"));
+    expect(cost).toBeLessThan(near("1.3"));
+    const normal = chain.submit({ signerId: G, publicKey: agent.publicKey, receiverId: G, actions: [pay(ALICE, 1n)] });
+    expect(normal.rejected).toBeUndefined();
+  });
+
   it("naive guard: concurrent pays in one block bypass the cap (deferred accounting)", () => {
     const { chain, agent } = setup("guard_naive__bug-deferred-accounting.wasm");
     for (let i = 0; i < 3; i++) chain.submit({ signerId: G, publicKey: agent.publicKey, receiverId: G, actions: [pay(ALICE, near(3))] });

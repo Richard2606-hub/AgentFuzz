@@ -8,11 +8,14 @@
 
 use near_workspaces::network::Sandbox;
 use near_workspaces::operations::Function;
-use near_workspaces::types::{AccessKeyPermission, KeyType, NearToken, SecretKey};
+use near_workspaces::types::{AccessKeyPermission, Gas, KeyType, NearToken, SecretKey};
 use near_workspaces::{Account, AccountId, Worker};
 use serde_json::json;
 
 const WINDOW_NS: u64 = 3_600_000_000_000; // 1 h
+/// Agent calls must not use max_gas(): nearcore charges a function-call key's allowance for the
+/// prepaid gas at a pessimistically inflated price (1.03^depth), so 300 Tgas costs ~1 NEAR.
+const AGENT_GAS: Gas = Gas::from_tgas(30);
 
 fn artifact(name: &str) -> Vec<u8> {
     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../artifacts").join(name);
@@ -44,7 +47,7 @@ async fn deploy(wasm_name: &str) -> anyhow::Result<Fixture> {
     };
     let owner = mk("owner", 50).await?;
     let alice = mk("alice", 5).await?;
-    let attacker = mk("attacker", 5).await?;
+    let attacker = mk("attacker", 10).await?;
     let guard = mk("guard", 30).await?;
 
     let agent_sk = SecretKey::from_random(KeyType::ED25519);
@@ -96,7 +99,7 @@ async fn reference_agent_key_is_scoped_and_pays_within_policy() -> anyhow::Resul
         .agent
         .call(&f.guard_id, "pay")
         .args_json(json!({ "receiver_id": f.alice.id(), "amount": NearToken::from_near(2).as_yoctonear().to_string() }))
-        .max_gas()
+        .gas(AGENT_GAS)
         .transact()
         .await?;
     assert!(ok.is_success(), "{ok:?}");
@@ -107,7 +110,7 @@ async fn reference_agent_key_is_scoped_and_pays_within_policy() -> anyhow::Resul
         .agent
         .call(&f.guard_id, "pay")
         .args_json(json!({ "receiver_id": f.alice.id(), "amount": NearToken::from_near(2).as_yoctonear().to_string() }))
-        .max_gas()
+        .gas(AGENT_GAS)
         .transact()
         .await?;
     assert!(over.is_failure());
@@ -117,7 +120,7 @@ async fn reference_agent_key_is_scoped_and_pays_within_policy() -> anyhow::Resul
         .agent
         .call(&f.guard_id, "pay")
         .args_json(json!({ "receiver_id": f.attacker.id(), "amount": "1" }))
-        .max_gas()
+        .gas(AGENT_GAS)
         .transact()
         .await?;
     assert!(evil.is_failure());
@@ -138,7 +141,7 @@ async fn inv3_agent_key_cannot_transfer_add_keys_or_call_admin_methods() -> anyh
 
     // Methods outside the key scope.
     for m in ["withdraw", "revoke_agent", "set_agent_key", "set_policy", "add_allowed"] {
-        let r = f.agent.call(&f.guard_id, m).args_json(json!({})).max_gas().transact().await;
+        let r = f.agent.call(&f.guard_id, m).args_json(json!({})).gas(AGENT_GAS).transact().await;
         assert!(r.map(|r| r.is_failure()).unwrap_or(true), "agent could call {m}");
     }
 
@@ -181,7 +184,7 @@ async fn naive_rotate_key_escalates_to_full_access() -> anyhow::Result<()> {
         .agent
         .call(&f.guard_id, "rotate_key")
         .args_json(json!({ "new_public_key": attacker_sk.public_key() }))
-        .max_gas()
+        .gas(AGENT_GAS)
         .transact()
         .await?;
     assert!(r.is_success(), "{r:?}");
@@ -202,10 +205,10 @@ async fn naive_prefix_allowlist_pays_lookalike() -> anyhow::Result<()> {
     // with alice's id, e.g. alice.test.near.attacker.test.near.
     let mut parent = f.attacker.clone();
     let alice_id = f.alice.id().to_string();
-    for label in alice_id.split('.').rev() {
+    for (i, label) in alice_id.split('.').rev().enumerate() {
         parent = parent
             .create_subaccount(label)
-            .initial_balance(NearToken::from_millinear(1500))
+            .initial_balance(NearToken::from_millinear(4000 - 1000 * i as u128))
             .transact()
             .await?
             .into_result()?;
@@ -218,7 +221,7 @@ async fn naive_prefix_allowlist_pays_lookalike() -> anyhow::Result<()> {
         .agent
         .call(&f.guard_id, "pay")
         .args_json(json!({ "receiver_id": lookalike.id(), "amount": NearToken::from_near(1).as_yoctonear().to_string() }))
-        .max_gas()
+        .gas(AGENT_GAS)
         .transact()
         .await?;
     assert!(r.is_success(), "{r:?}");

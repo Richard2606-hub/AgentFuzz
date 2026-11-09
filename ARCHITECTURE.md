@@ -76,10 +76,20 @@ deposit, receiver and method checks, allowance charged on prepaid gas), actor pe
 sub-account creation rules, refunds on failure, state rollback, `LackBalanceForState`.
 
 Approximate: gas. Host calls, storage bytes, receipt/action creation and contract loading are
-charged with nearcore-like constants; wasm instructions are not metered, and unused gas is
-credited to the signer immediately. Allowance exhaustion therefore happens after a realistic but
-not exact number of calls. Not modelled: staking, sharding, cross-shard delays beyond one block per
+charged with nearcore-like constants; wasm instructions are not metered, and gas refunds are
+credited to the signer immediately instead of through refund receipts. Transaction cost follows
+nearcore's `tx_cost`: send fees are burnt at the gas price, and prepaid + exec gas is reserved at
+the **pessimistic gas price** `price × 1.03^(hop + prepaid / min_receipt_with_function_call_gas)`.
+A function-call key's allowance is charged that whole reservation and never refunded, so a
+300 Tgas agent call costs ≈1 NEAR of allowance while a 30 Tgas call costs ≈0.005 NEAR. (This
+was found by running the sandbox suite: the first nearsim model charged allowances at the plain
+gas price and was ~30× too optimistic for max-gas calls; `harness/test/sim.test.ts` now pins the
+nearcore behaviour.) Not modelled: staking, sharding, cross-shard delays beyond one block per
 receipt hop, yield/resume, global contracts, gas keys.
 
-Ground truth: `tests/sandbox` runs the same contracts on a real nearcore sandbox via
-near-workspaces (Linux/macOS) and checks INV-3 and INV-4 directly.
+Ground truth: `tests/sandbox` runs the same committed wasm on a real nearcore sandbox via
+near-workspaces (Linux/macOS/WSL): the reference guard's agent key is scoped, pays within policy,
+refuses over-cap and non-allowlisted payments (INV-1/2), cannot transfer, add keys or call admin
+methods (INV-3), and the owner can revoke and withdraw (INV-4); the naive guard's key escalation
+(B3, then a direct drain with the injected key) and prefix look-alike payment (B2, to
+`alice.test.near.attacker.test.near`) reproduce on nearcore.
