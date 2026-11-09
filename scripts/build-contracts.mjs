@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -41,7 +42,21 @@ const builds = [
 ];
 
 function cargo(args) {
-  execFileSync("cargo", args, { cwd: root, stdio: ["ignore", "inherit", "inherit"] });
+  // Same flags as .cargo/config.toml plus path remapping, so panic-location strings embedded in
+  // the wasm don't depend on where the repo or the cargo registry live on this machine.
+  // (Env RUSTFLAGS override config rustflags, so --cfg near must be repeated here.)
+  const cargoHome = process.env.CARGO_HOME ?? join(homedir(), ".cargo");
+  const flags = [
+    "--cfg", "near",
+    "-C", "link-arg=-s",
+    `--remap-path-prefix=${cargoHome}=/cargo`,
+    `--remap-path-prefix=${root}=/agentfuzz`,
+  ];
+  execFileSync("cargo", args, {
+    cwd: root,
+    stdio: ["ignore", "inherit", "inherit"],
+    env: { ...process.env, CARGO_ENCODED_RUSTFLAGS: flags.join("\x1f") },
+  });
 }
 
 const sha = (p) => createHash("sha256").update(readFileSync(p)).digest("hex");

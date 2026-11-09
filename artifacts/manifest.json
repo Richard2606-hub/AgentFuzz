@@ -5,82 +5,82 @@
     "guard_reference.wasm": {
       "package": "guard-reference",
       "features": "default",
-      "sha256": "164efd24352478dda83405272cc011ff7be15f7cc8ecb7db2ca56abf6148ed2f",
-      "bytes": 195248
+      "sha256": "c6339bc44a6f9112c848ff332b08f730ae7a087a2e761db4cd60a67ed64723c4",
+      "bytes": 194968
     },
     "scoreboard.wasm": {
       "package": "scoreboard",
       "features": "default",
-      "sha256": "1e6e6874018003c131df65746f6bee72e231360459ee8f912f08d5a06e51c639",
-      "bytes": 155984
+      "sha256": "5a0c284c3c5e6259e21981cfde08e26312cdce4acc37dd9415201ef0c46a54d1",
+      "bytes": 155744
     },
     "guard_naive.wasm": {
       "package": "guard-naive",
       "features": "default",
-      "sha256": "125953e17d0ccdfffb58c070176b8d8e528a39cd2d43fdfeb76b3f9317258157",
-      "bytes": 186222
+      "sha256": "180b735df9422b1f4b5e16600b68dc8266b1617c67228ce197834d87cee36442",
+      "bytes": 185942
     },
     "guard_naive__bug-window-lag.wasm": {
       "package": "guard-naive",
       "features": [
         "bug-window-lag"
       ],
-      "sha256": "a4f75ea1da96a4d71f55007c2eaa2f51131f30d0990015005aceabf047523e49",
-      "bytes": 187087
+      "sha256": "931710df6ec32bec9622b50cac7770d04608a5b2b36e6f18eb72200839884867",
+      "bytes": 186807
     },
     "guard_naive__bug-prefix-allowlist.wasm": {
       "package": "guard-naive",
       "features": [
         "bug-prefix-allowlist"
       ],
-      "sha256": "7bd90e9037b5ec914b45046afdbabc82cfef3f54cfa5bd0c25eaed1c2118874c",
-      "bytes": 186588
+      "sha256": "4701bb52bd8e7fa4a5307a218218849282265311ef926356b2d90251e728d77c",
+      "bytes": 186308
     },
     "guard_naive__bug-rotate-full-key.wasm": {
       "package": "guard-naive",
       "features": [
         "bug-rotate-full-key"
       ],
-      "sha256": "cd3f0fd9aa9534e77328581ce385032a885f838464be01e325ee742d8d8a787c",
-      "bytes": 187382
+      "sha256": "52597d839ebb1b1f71439c55f706c842d002470063ea49e2f5c51b71a2b6f50f",
+      "bytes": 187102
     },
     "guard_naive__bug-deferred-accounting.wasm": {
       "package": "guard-naive",
       "features": [
         "bug-deferred-accounting"
       ],
-      "sha256": "6353fa5ecb72cc83e8f09257717ed8f062a1e89c58a4c7a8ff0074d8a1473816",
-      "bytes": 187297
+      "sha256": "cdabc91fe00b2dfb68ddf5fcc47b38cc1c96db76bc86c2de0da4a40503c4c44a",
+      "bytes": 187017
     },
     "guard_naive__bug-ignore-promise-result.wasm": {
       "package": "guard-naive",
       "features": [
         "bug-ignore-promise-result"
       ],
-      "sha256": "6f1604e5a67820bc5e3258687c03f911a051217fd5b921f34a721c4a81af6c43",
-      "bytes": 187171
+      "sha256": "90819e04cc17e1b28e832faaf93fcfce78fd226bdb5fcc7eafcb9df29610384d",
+      "bytes": 186891
     },
     "guard_naive__bug-withdraw-underflow.wasm": {
       "package": "guard-naive",
       "features": [
         "bug-withdraw-underflow"
       ],
-      "sha256": "d26c09cb05bf4f62178861571b1569138324c354f8e6b8aa432744fed37e4add",
-      "bytes": 187377
+      "sha256": "7243a0b55e7e2f50213b3003feb86444d8101f70cb0afbf1060dd375d24f7bbb",
+      "bytes": 187097
     },
     "guard_naive__bug-no-rekey.wasm": {
       "package": "guard-naive",
       "features": [
         "bug-no-rekey"
       ],
-      "sha256": "cd91e0f1ebc698b2cbf16949a30c0a3e0b16c7f8f415e247d5d2f6285bef7338",
-      "bytes": 186989
+      "sha256": "5ceb2561f560219512db25e4ee9e9a17327b576b534ba1e9a9ac30e712073ee0",
+      "bytes": 186709
     },
     "guard_naive__fixed.wasm": {
       "package": "guard-naive",
       "features": [],
-      "sha256": "c62514e6457c250f2fd362466e53c58c99505985340cdfe994d6fb9bc4489db9",
-      "bytes": 187296
+      "sha256": "ca5f911de625461c6609220726538d5256e93322b0235c5e5bf5c7689dac74fd",
+      "bytes": 187016
     }
   }
 }
