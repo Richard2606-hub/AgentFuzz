@@ -54,6 +54,7 @@ demo-offline:
 
 report:
 	@set -a; [ -f .env ] && . ./.env; set +a; $(AF) report --seed $(SEED) --runs $(RUNS)
+	@node scripts/update-readme-anchor.mjs || true
 
 verify:
 	@set -a; [ -f .env ] && . ./.env; set +a; $(AF) verify ../out/scorecard.json
