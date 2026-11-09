@@ -1,0 +1,16 @@
+[package]
+name = "guard-reference"
+description = "AgentFuzz reference guard: per-window spending cap, exact-match allowlist, scoped agent key, owner revoke/withdraw/re-key."
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = { workspace = true }
+
+[dev-dependencies]
+near-sdk = { workspace = true, features = ["unit-testing"] }

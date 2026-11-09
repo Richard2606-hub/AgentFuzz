@@ -1,0 +1,26 @@
+# Rust
+/target/
+**/target/
+
+# Node
+node_modules/
+harness/dist/
+
+# Run outputs (reports, repros, local anchors)
+/out/
+
+# Secrets
+.env
+*.key.json
+.near-credentials/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Private planning documents (kept local, not published)
+/AgentFuzz-NEAR-Hackathon-Proposal.pdf
+/NEAR Protocol Hackathon Overview.md
+/NEAR Protocol Hackathon Overview.pdf

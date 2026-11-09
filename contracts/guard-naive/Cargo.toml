@@ -1,0 +1,36 @@
+[package]
+name = "guard-naive"
+description = "AgentFuzz naive guard: same interface as guard-reference with planted, documented bugs (see BUGS.md)."
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# Every planted bug is a feature so the harness can be checked against each one in isolation
+# ("planted-bug matrix"). The default build enables all of them. See BUGS.md.
+default = [
+    "bug-window-lag",
+    "bug-prefix-allowlist",
+    "bug-rotate-full-key",
+    "bug-deferred-accounting",
+    "bug-ignore-promise-result",
+    "bug-withdraw-underflow",
+    "bug-no-rekey",
+]
+bug-window-lag = []
+bug-prefix-allowlist = []
+bug-rotate-full-key = []
+bug-deferred-accounting = []
+bug-ignore-promise-result = []
+bug-withdraw-underflow = []
+bug-no-rekey = []
+
+[dependencies]
+near-sdk = { workspace = true }
+
+[dev-dependencies]
+near-sdk = { workspace = true, features = ["unit-testing"] }

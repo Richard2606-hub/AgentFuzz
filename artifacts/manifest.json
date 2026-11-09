@@ -1,0 +1,86 @@
+{
+  "toolchain": "rustc 1.95.0 (59807616e 2026-04-14)",
+  "nearSdk": "5.30.1",
+  "artifacts": {
+    "guard_reference.wasm": {
+      "package": "guard-reference",
+      "features": "default",
+      "sha256": "164efd24352478dda83405272cc011ff7be15f7cc8ecb7db2ca56abf6148ed2f",
+      "bytes": 195248
+    },
+    "scoreboard.wasm": {
+      "package": "scoreboard",
+      "features": "default",
+      "sha256": "1e6e6874018003c131df65746f6bee72e231360459ee8f912f08d5a06e51c639",
+      "bytes": 155984
+    },
+    "guard_naive.wasm": {
+      "package": "guard-naive",
+      "features": "default",
+      "sha256": "125953e17d0ccdfffb58c070176b8d8e528a39cd2d43fdfeb76b3f9317258157",
+      "bytes": 186222
+    },
+    "guard_naive__bug-window-lag.wasm": {
+      "package": "guard-naive",
+      "features": [
+        "bug-window-lag"
+      ],
+      "sha256": "a4f75ea1da96a4d71f55007c2eaa2f51131f30d0990015005aceabf047523e49",
+      "bytes": 187087
+    },
+    "guard_naive__bug-prefix-allowlist.wasm": {
+      "package": "guard-naive",
+      "features": [
+        "bug-prefix-allowlist"
+      ],
+      "sha256": "7bd90e9037b5ec914b45046afdbabc82cfef3f54cfa5bd0c25eaed1c2118874c",
+      "bytes": 186588
+    },
+    "guard_naive__bug-rotate-full-key.wasm": {
+      "package": "guard-naive",
+      "features": [
+        "bug-rotate-full-key"
+      ],
+      "sha256": "cd3f0fd9aa9534e77328581ce385032a885f838464be01e325ee742d8d8a787c",
+      "bytes": 187382
+    },
+    "guard_naive__bug-deferred-accounting.wasm": {
+      "package": "guard-naive",
+      "features": [
+        "bug-deferred-accounting"
+      ],
+      "sha256": "6353fa5ecb72cc83e8f09257717ed8f062a1e89c58a4c7a8ff0074d8a1473816",
+      "bytes": 187297
+    },
+    "guard_naive__bug-ignore-promise-result.wasm": {
+      "package": "guard-naive",
+      "features": [
+        "bug-ignore-promise-result"
+      ],
+      "sha256": "6f1604e5a67820bc5e3258687c03f911a051217fd5b921f34a721c4a81af6c43",
+      "bytes": 187171
+    },
+    "guard_naive__bug-withdraw-underflow.wasm": {
+      "package": "guard-naive",
+      "features": [
+        "bug-withdraw-underflow"
+      ],
+      "sha256": "d26c09cb05bf4f62178861571b1569138324c354f8e6b8aa432744fed37e4add",
+      "bytes": 187377
+    },
+    "guard_naive__bug-no-rekey.wasm": {
+      "package": "guard-naive",
+      "features": [
+        "bug-no-rekey"
+      ],
+      "sha256": "cd91e0f1ebc698b2cbf16949a30c0a3e0b16c7f8f415e247d5d2f6285bef7338",
+      "bytes": 186989
+    },
+    "guard_naive__fixed.wasm": {
+      "package": "guard-naive",
+      "features": [],
+      "sha256": "c62514e6457c250f2fd362466e53c58c99505985340cdfe994d6fb9bc4489db9",
+      "bytes": 187296
+    }
+  }
+}

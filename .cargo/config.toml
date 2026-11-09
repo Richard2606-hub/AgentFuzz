@@ -1,0 +1,5 @@
+# Build contracts exactly like `cargo near build` does: near-sdk >= 5.2x only binds the real
+# on-chain host functions under `--cfg near`; without it, it compiles pure-Rust fallbacks
+# (e.g. panics become bare `unreachable` traps and lose their messages).
+[target.wasm32-unknown-unknown]
+rustflags = ["--cfg", "near", "-C", "link-arg=-s"]

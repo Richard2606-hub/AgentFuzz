@@ -1,0 +1,7 @@
+[toolchain]
+# Pinned to near-sdk 5.30's MSRV. nearcore now accepts bulk-memory / reference-types wasm,
+# so no older-toolchain workaround is needed; one exact version keeps builds reproducible.
+channel = "1.95.0"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]
+profile = "minimal"
