@@ -124,7 +124,7 @@ export async function cmdDemoOffline(flags: Flags, outDir: string, printers: Dem
   sc.anchors.push(await anchorNearsim(sc));
   const testnet = testnetConfigFromEnv();
   if (testnet && flags["anchor-testnet"]) sc.anchors.push(await anchorTestnet(sc, testnet));
-  const files = writeScorecard(sc, outDir, !flags["no-web"]);
+  const files = writeScorecard(sc, outDir, Boolean(flags.web));
   printScorecardSummary(sc, files);
   console.log(`\n  ${c.dim("Re-run it yourself:")} agentfuzz verify ${rel(join(outDir, "scorecard.json"))}   ${c.dim("· run it on your guard:")} agentfuzz fuzz --target path/to/guard.wasm`);
   return 0;
