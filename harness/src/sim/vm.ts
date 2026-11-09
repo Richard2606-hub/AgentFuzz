@@ -145,7 +145,7 @@ export function compileModule(code: Uint8Array): WebAssembly.Module {
   const h = codeHash(code);
   let m = moduleCache.get(h);
   if (!m) {
-    m = new WebAssembly.Module(code);
+    m = new WebAssembly.Module(code as Uint8Array<ArrayBuffer>);
     moduleCache.set(h, m);
   }
   return m;
@@ -553,7 +553,7 @@ export function execute(module: WebAssembly.Module, codeLen: number, method: str
     const fn = exported[method];
     if (typeof fn !== "function") return finish({ kind: "MethodNotFound", message: `Contract method '${method}' is not found` });
     (fn as () => void)();
-    if (returnData.kind === "promise" && ctx.isView) throw new HostError("ProhibitedInView", "promise_return in view");
+    if ((returnData as ReturnData).kind === "promise" && ctx.isView) throw new HostError("ProhibitedInView", "promise_return in view");
     distributeWeightedGas(promises, ctx.prepaidGas - (burnt + attachedToPromises), (g) => (attachedToPromises += g));
     return finish();
   } catch (e) {
