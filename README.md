@@ -56,7 +56,8 @@ Every claim in this README is a command. Expected output is abbreviated.
 | `make prompt TARGET=naive` | `BREACH` on A1-002/A1-010/A1-012/A2-003 (prefix look-alikes) and A1-003/A2-006 (injected `rotate_key` → full-access key → balance drained) |
 | `make report` | `out/scorecard.json`, `out/scorecard.html`, `web/index.html`; run id `af-42-…`; anchors: testnet if `.env` is set, otherwise nearsim + `out/anchors.local.json` |
 | `make verify` | `✓ body hash matches … ✓ deterministic re-run reproduced the identical hash … verified` |
-| `make test` | 29 contract unit tests (if Rust is installed) and 45 harness tests, including the planted-bug matrix |
+| `cd harness && node bin/agentfuzz.mjs diff --target reference --runs 20` | Differential test: runs identical sequences on nearsim and real nearcore sandbox, confirming 20/20 agree |
+| `make test` | 32 contract unit tests (if Rust is installed) and 54 harness tests, including the planted-bug matrix |
 | `make sandbox-test` (Linux/macOS) | The same wasm on a real nearcore sandbox via near-workspaces: INV-3/INV-4 hold on the reference guard; the naive key escalation and look-alike payment reproduce on nearcore |
 
 ## What it checks
@@ -129,6 +130,22 @@ A custom wasm is driven through the `agentfuzz-guard-v1` adapter (methods `new`,
 interface, write a ~40-line adapter: see [targets/third-party/README.md](targets/third-party/README.md).
 Third-party guards are only ever deployed in a local chain; see the disclosure policy there.
 
+### Reusable GitHub Action
+
+Guard projects can drop AgentFuzz into their CI pipeline to audit pull requests automatically:
+
+```yaml
+- uses: actions/checkout@v4
+- name: Run AgentFuzz Security Audit
+  uses: agentfuzz/agentfuzz/.github/actions/agentfuzz@main
+  with:
+    target: target/wasm32-unknown-unknown/release/guard.wasm
+    runs: 200
+    fail-on-break: true
+```
+
+See [.github/actions/agentfuzz/README.md](.github/actions/agentfuzz/README.md) for full action options.
+
 ## Prompt layer: offline and live
 
 * **Offline (default)**: the committed corpus ([`corpus/prompt`](corpus/prompt)) with the
@@ -157,7 +174,7 @@ Testnet scoreboard: `SCOREBOARD_CONTRACT_ID` (see `.env.example`; deploy your ow
 | What | Where |
 |------|-------|
 | Scoreboard contract | [`scoreboard.agentfuzz-28213.testnet`](https://testnet.nearblocks.io/address/scoreboard.agentfuzz-28213.testnet) |
-| Published scorecard | [`web/scorecard.json`](web/scorecard.json) / [`web/index.html`](web/index.html): run `af-42-827fed191f1a` (commit `039ef88a1c82`) |
+| Published scorecard | [`web/scorecard.json`](web/scorecard.json) / [`web/index.html`](web/index.html): run `af-42-827fed191f1a` (commit `879b5908efcb`) |
 | Report SHA-256 | `827fed191f1ae1625885237e46f309b752f6783126760bfcf97e69a26bc54c2b` |
 | Anchor transaction | [`CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG`](https://testnet.nearblocks.io/txns/CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG) |
 <!-- anchor:end -->

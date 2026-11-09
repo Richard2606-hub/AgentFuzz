@@ -657,9 +657,9 @@
   "sha256": "827fed191f1ae1625885237e46f309b752f6783126760bfcf97e69a26bc54c2b",
   "runId": "af-42-827fed191f1a",
   "meta": {
-    "generatedAt": "2026-11-09T18:51:21.036Z",
-    "commit": "039ef88a1c82",
-    "durationMs": 2472,
+    "generatedAt": "2026-11-09T18:58:32.724Z",
+    "commit": "879b5908efcb",
+    "durationMs": 2542,
     "nodeVersion": "v24.14.1"
   },
   "anchors": [
@@ -670,7 +670,8 @@
       "sha256": "827fed191f1ae1625885237e46f309b752f6783126760bfcf97e69a26bc54c2b",
       "txHash": "CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG",
       "explorerUrl": "https://testnet.nearblocks.io/txns/CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG",
-      "recordedAt": "2026-11-09T18:51:31.155Z"
+      "recordedAt": "2026-11-09T18:51:31.155Z",
+      "note": "already anchored on testnet (immutable)"
     },
     {
       "network": "nearsim",
@@ -679,7 +680,7 @@
       "sha256": "827fed191f1ae1625885237e46f309b752f6783126760bfcf97e69a26bc54c2b",
       "txHash": "tx_a62b2cbc4a72c1e99c8e17e6",
       "blockHeight": "3",
-      "recordedAt": "2026-11-09T18:51:31.167Z",
+      "recordedAt": "2026-11-09T18:58:33.107Z",
       "note": "offline proof: scoreboard.wasm executed in nearsim; use --anchor testnet to publish"
     }
   ]

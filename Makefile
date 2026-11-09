@@ -17,6 +17,7 @@ help:
 	@echo "make fuzz           fuzz one guard:   make fuzz TARGET=naive|reference|path/to.wasm SEED=42 RUNS=200"
 	@echo "make prompt         prompt-layer attacks through the reference agent: make prompt TARGET=reference"
 	@echo "make matrix         planted-bug matrix: every planted bug must be found, controls clean"
+	@echo "make diff           differential test: run sequences against nearsim and nearcore sandbox"
 	@echo "make demo-offline   the full demo, no API keys, no network"
 	@echo "make report         scorecard JSON + HTML (web/), report hash anchored (testnet if .env set, else nearsim)"
 	@echo "make verify         re-run out/scorecard.json deterministically and check its hash"
@@ -48,6 +49,9 @@ prompt:
 
 matrix:
 	$(AF) matrix --seed 7 --runs 150
+
+diff:
+	$(AF) diff --target $(TARGET) --seed $(SEED) --runs 20
 
 demo-offline:
 	$(AF) demo-offline --seed $(SEED) --runs $(RUNS)

@@ -45,9 +45,9 @@ function targetCard(t: TargetScore): string {
           i.violation
             ? `<div class="violation">${esc(i.violation)}</div>${
                 i.repro
-                  ? `<details><summary>Minimised repro · ${i.repro.steps.length} step(s) · ${i.repro.numShrinks} shrinks · ${esc(i.repro.attackClasses.join(", ") || "no attack needed")}</summary><ol>${
-                      i.repro.steps.length ? i.repro.steps.map((s) => `<li>${esc(s)}</li>`).join("") : "<li><em>no steps: broken by the end-of-run owner check</em></li>"
-                    }</ol></details>`
+                  ? `<details><summary>Minimised repro · ${i.repro.steps.length} step(s) · ${i.repro.numShrinks} shrinks · ${esc(i.repro.attackClasses.join(", ") || "no attack needed")}</summary><div class="repro-box"><ol>${
+                      i.repro.steps.length ? i.repro.steps.map((s) => `<li><code>${esc(s)}</code></li>`).join("") : "<li><em>no steps: broken by the end-of-run owner check</em></li>"
+                    }</ol></div></details>`
                   : ""
               }`
             : `<span class="muted">-</span>`
@@ -108,7 +108,9 @@ header h1{margin:0;font-size:28px;letter-spacing:.3px}header h1 span{color:var(-
 table{width:100%;border-collapse:collapse;margin:8px 0}th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}th{color:var(--muted);font-weight:500;font-size:12px;text-transform:uppercase}
 table.compact td{padding:6px 8px;font-size:14px}.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
 .badge.ok{background:#173a26;color:var(--ok)}.badge.bad{background:#3d1b1b;color:var(--bad)}.badge.warn{background:#3d3117;color:var(--warn)}.badge.info{background:#17303d;color:var(--info)}.badge.muted{background:#222;color:var(--muted)}
-.violation{color:#ffb3b3}.okc{color:var(--ok)}.badc{color:var(--bad)}details summary{cursor:pointer;color:var(--accent);margin-top:4px}details ol{margin:6px 0 0 18px;padding:0}
+.violation{color:#ffb3b3}.okc{color:var(--ok)}.badc{color:var(--bad)}details summary{cursor:pointer;color:var(--accent);margin-top:4px}
+.repro-box{background:#090d14;border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-top:6px}
+.repro-box ol{margin:4px 0 4px 18px;padding:0}.repro-box li{margin:3px 0;font-size:13px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:12px}@media(max-width:900px){.grid2{grid-template-columns:1fr}}
 h4{margin:12px 0 8px}.bar-row{display:grid;grid-template-columns:200px 1fr 50px;gap:8px;align-items:center;font-size:13px;margin:4px 0}.bar{background:#1b2130;border-radius:4px;height:10px;overflow:hidden}.bar span{display:block;height:100%;background:var(--accent)}
 .stats b{font-size:17px}code{background:#1b2130;padding:2px 6px;border-radius:5px}footer{color:var(--muted);font-size:13px;margin-top:40px}footer table td{font-size:13px}

@@ -1,0 +1,89 @@
+name: 'AgentFuzz Guard Red-Team'
+description: 'Red-team fuzzing and prompt injection harness for NEAR agent-wallet guards'
+author: 'AgentFuzz'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  target:
+    description: 'Target guard name ("reference", "naive") or path to compiled .wasm'
+    required: false
+    default: 'reference'
+  runs:
+    description: 'Number of fuzzing iterations per invariant'
+    required: false
+    default: '150'
+  seed:
+    description: 'Deterministic pseudo-random seed'
+    required: false
+    default: '42'
+  max-steps:
+    description: 'Maximum attack steps per generated sequence'
+    required: false
+    default: '20'
+  fail-on-break:
+    description: 'Exit with error code if any safety invariant is broken'
+    required: false
+    default: 'true'
+  prompt:
+    description: 'Run prompt-layer attack corpus (A1 injection & A2 tool poisoning)'
+    required: false
+    default: 'true'
+  out-dir:
+    description: 'Directory where scorecard and minimised repros are written'
+    required: false
+    default: 'out'
+
+outputs:
+  scorecard-json:
+    description: 'Path to the generated scorecard JSON file'
+    value: ${{ steps.fuzz.outputs.scorecard-json }}
+  scorecard-html:
+    description: 'Path to the generated self-contained scorecard HTML'
+    value: ${{ steps.fuzz.outputs.scorecard-html }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install AgentFuzz harness dependencies
+      shell: bash
+      run: |
+        cd ${{ github.action_path }}/../../harness
+        npm ci
+
+    - name: Run AgentFuzz
+      id: fuzz
+      shell: bash
+      run: |
+        OUT_DIR="${{ inputs.out-dir }}"
+        mkdir -p "$OUT_DIR"
+        FAIL_FLAG=""
+        if [ "${{ inputs.fail-on-break }}" = "true" ]; then
+          FAIL_FLAG="--fail-on-break"
+        fi
+
+        echo "Running contract-layer fuzzing on target: ${{ inputs.target }}"
+        node ${{ github.action_path }}/../../harness/bin/agentfuzz.mjs fuzz \
+          --target "${{ inputs.target }}" \
+          --runs "${{ inputs.runs }}" \
+          --seed "${{ inputs.seed }}" \
+          --max-steps "${{ inputs.max-steps }}" \
+          --out "$OUT_DIR" \
+          $FAIL_FLAG
+
+        if [ "${{ inputs.prompt }}" = "true" ]; then
+          echo "Running prompt-layer attacks..."
+          node ${{ github.action_path }}/../../harness/bin/agentfuzz.mjs prompt \
+            --target "${{ inputs.target }}" \
+            --planner compromised \
+            --out "$OUT_DIR"
+        fi
+
+        echo "scorecard-json=$OUT_DIR/scorecard.json" >> $GITHUB_OUTPUT
+        echo "scorecard-html=$OUT_DIR/scorecard.html" >> $GITHUB_OUTPUT

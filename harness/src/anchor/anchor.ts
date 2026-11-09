@@ -14,7 +14,7 @@ import { Account, JsonRpcProvider } from "near-api-js";
 import { SimChain } from "../sim/chain.js";
 import { deriveKeyPair, near } from "../near/keys.js";
 import { decodeValue, functionCall } from "../near/types.js";
-import { ARTIFACTS } from "../targets/registry.js";
+import { ARTIFACTS, REPO_ROOT } from "../targets/registry.js";
 import type { AnchorRecord, Scorecard } from "../report/scorecard.js";
 
 export const DEFAULT_TESTNET_RPC = "https://test.rpc.fastnear.com";
@@ -98,6 +98,30 @@ export function explorerTx(hash: string, network = "testnet"): string {
 }
 
 export async function anchorTestnet(sc: Scorecard, cfg: TestnetConfig): Promise<AnchorRecord> {
+  const existing = await readTestnetRecord(cfg.contractId, sc.runId, cfg.rpcUrl).catch(() => undefined);
+  if (existing) {
+    if (existing.sha256 === sc.sha256) {
+      let txHash = existing.sha256;
+      let recordedAt = new Date().toISOString();
+      try {
+        const prev = JSON.parse(readFileSync(join(REPO_ROOT, "web", "scorecard.json"), "utf8"));
+        const prevAnchor = prev.anchors?.find((a: any) => a.network === "testnet" && a.runId === sc.runId);
+        if (prevAnchor?.txHash) txHash = prevAnchor.txHash;
+        if (prevAnchor?.recordedAt) recordedAt = prevAnchor.recordedAt;
+      } catch {}
+      return {
+        network: "testnet",
+        contractId: cfg.contractId,
+        runId: sc.runId,
+        sha256: sc.sha256,
+        txHash,
+        explorerUrl: explorerTx(txHash),
+        recordedAt,
+        note: "already anchored on testnet (immutable)",
+      };
+    }
+    throw new Error(`testnet already has run_id ${sc.runId} with different sha256: ${existing.sha256}`);
+  }
   const account = new Account(cfg.accountId, cfg.rpcUrl, cfg.privateKey as `ed25519:${string}`);
   const res = (await account.callFunctionRaw({
     contractId: cfg.contractId,

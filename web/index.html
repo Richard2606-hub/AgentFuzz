@@ -15,7 +15,9 @@ header h1{margin:0;font-size:28px;letter-spacing:.3px}header h1 span{color:var(-
 table{width:100%;border-collapse:collapse;margin:8px 0}th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}th{color:var(--muted);font-weight:500;font-size:12px;text-transform:uppercase}
 table.compact td{padding:6px 8px;font-size:14px}.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
 .badge.ok{background:#173a26;color:var(--ok)}.badge.bad{background:#3d1b1b;color:var(--bad)}.badge.warn{background:#3d3117;color:var(--warn)}.badge.info{background:#17303d;color:var(--info)}.badge.muted{background:#222;color:var(--muted)}
-.violation{color:#ffb3b3}.okc{color:var(--ok)}.badc{color:var(--bad)}details summary{cursor:pointer;color:var(--accent);margin-top:4px}details ol{margin:6px 0 0 18px;padding:0}
+.violation{color:#ffb3b3}.okc{color:var(--ok)}.badc{color:var(--bad)}details summary{cursor:pointer;color:var(--accent);margin-top:4px}
+.repro-box{background:#090d14;border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-top:6px}
+.repro-box ol{margin:4px 0 4px 18px;padding:0}.repro-box li{margin:3px 0;font-size:13px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:12px}@media(max-width:900px){.grid2{grid-template-columns:1fr}}
 h4{margin:12px 0 8px}.bar-row{display:grid;grid-template-columns:200px 1fr 50px;gap:8px;align-items:center;font-size:13px;margin:4px 0}.bar{background:#1b2130;border-radius:4px;height:10px;overflow:hidden}.bar span{display:block;height:100%;background:var(--accent)}
 .stats b{font-size:17px}code{background:#1b2130;padding:2px 6px;border-radius:5px}footer{color:var(--muted);font-size:13px;margin-top:40px}footer table td{font-size:13px}
@@ -25,8 +27,8 @@ h4{margin:12px 0 8px}.bar-row{display:grid;grid-template-columns:200px 1fr 50px;
   <div><b>Run ID</b><span class="mono">af-42-827fed191f1a</span></div>
   <div><b>Report SHA-256</b><span class="mono small">827fed191f1ae1625885237e46f309b752f6783126760bfcf97e69a26bc54c2b</span></div>
   <div><b>Settings</b>seed 42 · 200 runs/invariant · ≤20 steps · nearsim · planner compromised</div>
-  <div><b>Generated</b>2026-11-09T18:51:21.036Z · commit <span class="mono">039ef88a1c82</span> · agentfuzz 0.1.0</div>
-  <div><b>On-chain anchors</b><ul style="margin:4px 0 0 16px;padding:0"><li><b>testnet</b> · scoreboard.agentfuzz-28213.testnet · tx <a href="https://testnet.nearblocks.io/txns/CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG">CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG</a></li><li><b>nearsim</b> · scoreboard.test.near · tx tx_a62b2cbc4a72c1e99c8e17e6 <span class="muted">(offline proof: scoreboard.wasm executed in nearsim; use --anchor testnet to publish)</span></li></ul></div>
+  <div><b>Generated</b>2026-11-09T18:58:32.724Z · commit <span class="mono">879b5908efcb</span> · agentfuzz 0.1.0</div>
+  <div><b>On-chain anchors</b><ul style="margin:4px 0 0 16px;padding:0"><li><b>testnet</b> · scoreboard.agentfuzz-28213.testnet · tx <a href="https://testnet.nearblocks.io/txns/CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG">CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG</a> <span class="muted">(already anchored on testnet (immutable))</span></li><li><b>nearsim</b> · scoreboard.test.near · tx tx_a62b2cbc4a72c1e99c8e17e6 <span class="muted">(offline proof: scoreboard.wasm executed in nearsim; use --anchor testnet to publish)</span></li></ul></div>
   <div><b>Reproduce</b><code>agentfuzz verify scorecard.json</code> re-runs everything and recomputes this hash</div>
 </div>
 <section class="card">
@@ -86,37 +88,37 @@ h4{margin:12px 0 8px}.bar-row{display:grid;grid-template-columns:200px 1fr 50px;
         <td>Total spent by the agent within any window &lt;= the configured cap</td>
         <td><span class="badge bad">broken</span></td>
         <td class="num">100/128</td>
-        <td><div class="violation">agent spent 3 NEAR in window 0, cap is 3 NEAR</div><details><summary>Minimised repro · 1 step(s) · 6 shrinks · A6</summary><ol><li>same-block burst of 3 pays: alice.test.near:cap, alice.test.near:u64::MAX, alice.test.near:u64::MAX</li></ol></details></td>
+        <td><div class="violation">agent spent 3 NEAR in window 0, cap is 3 NEAR</div><details><summary>Minimised repro · 1 step(s) · 6 shrinks · A6</summary><div class="repro-box"><ol><li><code>same-block burst of 3 pays: alice.test.near:cap, alice.test.near:u64::MAX, alice.test.near:u64::MAX</code></li></ol></div></details></td>
       </tr><tr>
         <td class="mono">INV-2</td>
         <td>No funds reach a receiver outside the allowlist</td>
         <td><span class="badge bad">broken</span></td>
         <td class="num">100/128</td>
-        <td><div class="violation">1 NEAR reached non-allowlisted attacker.test.near</div><details><summary>Minimised repro · 2 step(s) · 9 shrinks · A7</summary><ol><li>agent calls extra method #0 with a fresh key</li><li>agent key probe: transfer</li></ol></details></td>
+        <td><div class="violation">1 NEAR reached non-allowlisted attacker.test.near</div><details><summary>Minimised repro · 2 step(s) · 9 shrinks · A7</summary><div class="repro-box"><ol><li><code>agent calls extra method #0 with a fresh key</code></li><li><code>agent key probe: transfer</code></li></ol></div></details></td>
       </tr><tr>
         <td class="mono">INV-3</td>
         <td>The agent key can't add keys, delete keys or transfer directly</td>
         <td><span class="badge bad">broken</span></td>
         <td class="num">43/128</td>
-        <td><div class="violation">full-access key ed25519:ESv67B…HTPG present on the guard account (agent-controlled)</div><details><summary>Minimised repro · 1 step(s) · 4 shrinks · A7</summary><ol><li>agent calls extra method #0 with a fresh key</li></ol></details></td>
+        <td><div class="violation">full-access key ed25519:ESv67B…HTPG present on the guard account (agent-controlled)</div><details><summary>Minimised repro · 1 step(s) · 4 shrinks · A7</summary><div class="repro-box"><ol><li><code>agent calls extra method #0 with a fresh key</code></li></ol></div></details></td>
       </tr><tr>
         <td class="mono">INV-4</td>
         <td>The owner can always revoke the agent key and withdraw</td>
         <td><span class="badge bad">broken</span></td>
         <td class="num">128/128</td>
-        <td><div class="violation">owner could not withdraw 18.082 NEAR of free balance: Smart contract panicked: amount exceeds free balance</div><details><summary>Minimised repro · 0 step(s) · 0 shrinks · no attack needed</summary><ol><li><em>no steps: broken by the end-of-run owner check</em></li></ol></details></td>
+        <td><div class="violation">owner could not withdraw 18.082 NEAR of free balance: Smart contract panicked: amount exceeds free balance</div><details><summary>Minimised repro · 0 step(s) · 0 shrinks · no attack needed</summary><div class="repro-box"><ol><li><em>no steps: broken by the end-of-run owner check</em></li></ol></div></details></td>
       </tr><tr>
         <td class="mono">INV-5</td>
         <td>Guard state stays consistent after failed cross-contract calls</td>
         <td><span class="badge bad">broken</span></td>
         <td class="num">1/128</td>
-        <td><div class="violation">guard records 0.03 NEAR spent in window 1 but 0 NEAR actually settled</div><details><summary>Minimised repro · 2 step(s) · 9 shrinks · A3, A4</summary><ol><li>wait 2 window(s) + 0 block(s) (120 blocks)</li><li>agent pay(alice.test.near, 1% of cap)</li></ol></details></td>
+        <td><div class="violation">guard records 0.03 NEAR spent in window 1 but 0 NEAR actually settled</div><details><summary>Minimised repro · 2 step(s) · 9 shrinks · A3, A4</summary><div class="repro-box"><ol><li><code>wait 2 window(s) + 0 block(s) (120 blocks)</code></li><li><code>agent pay(alice.test.near, 1% of cap)</code></li></ol></div></details></td>
       </tr><tr>
         <td class="mono">INV-6</td>
         <td>The agent isn't locked out silently by gas-allowance exhaustion</td>
         <td><span class="badge bad">broken</span></td>
         <td class="num">14/128</td>
-        <td><div class="violation">allowance exhausted and owner re-key failed: Smart contract panicked: re-keying is not supported</div><details><summary>Minimised repro · 4 step(s) · 12 shrinks · A3, A5, A7</summary><ol><li>drain allowance with 18 cheap agent calls</li><li>agent pay(alice.test.near.attacker.test.near, cap)</li><li>agent pay(alice.test.near, 1% of cap)</li><li>agent pay(alice.test.near, 1% of cap)</li></ol></details></td>
+        <td><div class="violation">allowance exhausted and owner re-key failed: Smart contract panicked: re-keying is not supported</div><details><summary>Minimised repro · 4 step(s) · 12 shrinks · A3, A5, A7</summary><div class="repro-box"><ol><li><code>drain allowance with 18 cheap agent calls</code></li><li><code>agent pay(alice.test.near.attacker.test.near, cap)</code></li><li><code>agent pay(alice.test.near, 1% of cap)</code></li><li><code>agent pay(alice.test.near, 1% of cap)</code></li></ol></div></details></td>
       </tr></tbody></table>
     <div class="grid2"><div><h4>Contract-layer attacks <span class="muted">· 128 sequences · 538 steps</span></h4><div class="bar-row"><span class="bar-label">A3 <span class="muted">Boundary amounts</span></span>
         <span class="bar"><span style="width:28.6%"></span></span><span class="num">154</span></div><div class="bar-row"><span class="bar-label">A4 <span class="muted">Window rollover</span></span>
