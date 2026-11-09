@@ -26,6 +26,14 @@ Tips: `NO_COLOR=1` for plain logs; `--runs 100` makes every command finish in ab
 Attach the video. Post **before** submitting: the form needs the post's link, and submissions
 can't be edited afterwards.
 
+## Live Testnet Evidence (for submission fields & demo)
+
+* **Scoreboard Contract**: `scoreboard.agentfuzz-28213.testnet` ([NearBlocks](https://testnet.nearblocks.io/address/scoreboard.agentfuzz-28213.testnet))
+* **Anchored Run ID**: `af-42-827fed191f1a`
+* **Scorecard SHA-256**: `827fed191f1ae1625885237e46f309b752f6783126760bfcf97e69a26bc54c2b`
+* **Anchor Transaction**: `CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG` ([NearBlocks Tx](https://testnet.nearblocks.io/txns/CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG))
+* **Verification Command**: `agentfuzz verify web/scorecard.json`
+
 ## Submission checklist
 
 - [ ] Repo public, MIT licence, CI green, `make setup && make test && make demo-offline` passes from a clean clone
