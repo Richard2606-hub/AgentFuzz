@@ -8,7 +8,7 @@
  * Order matters: passive checks (INV-1, INV-2, INV-3 audit, INV-5) run first; then the active
  * owner checks (INV-6 recovery, INV-4 revoke + withdraw), which change state.
  */
-import { formatNear } from "../near/keys.js";
+import { fmtNear } from "../near/keys.js";
 import type { ValueTransfer } from "../near/types.js";
 import type { Trace } from "../attacks/steps.js";
 import type { World } from "../world.js";
@@ -38,7 +38,7 @@ export function checkInv1(w: World, outflows: AgentOutflow[]): Violation[] {
     if (e.total > w.cfg.cap)
       out.push({
         invariant: "INV-1",
-        message: `agent spent ${formatNear(e.total)} NEAR in window ${window}, cap is ${formatNear(w.cfg.cap)} NEAR`,
+        message: `agent spent ${fmtNear(e.total)} in window ${window}, cap is ${fmtNear(w.cfg.cap)}`,
         evidence: { window: window.toString(), spent: e.total.toString(), cap: w.cfg.cap.toString(), txs: e.txs },
       });
   }
@@ -51,7 +51,7 @@ export function checkInv2(w: World, outflows: AgentOutflow[]): Violation[] {
     .filter((o) => !allowed.has(o.to))
     .map((o) => ({
       invariant: "INV-2" as const,
-      message: `${formatNear(o.amount)} NEAR reached non-allowlisted ${o.to}`,
+      message: `${fmtNear(o.amount)} reached non-allowlisted ${o.to}`,
       evidence: { to: o.to, amount: o.amount.toString(), txHash: o.txHash, receiptId: o.receiptId },
     }));
 }
@@ -99,7 +99,7 @@ export async function checkInv5(w: World, trace: Trace): Promise<Violation[] | u
   return [
     {
       invariant: "INV-5",
-      message: `guard records ${formatNear(acct.spent)} NEAR spent in window ${acct.window} but ${formatNear(settled)} NEAR actually settled`,
+      message: `guard records ${fmtNear(acct.spent)} spent in window ${acct.window} but ${fmtNear(settled)} actually settled`,
       evidence: { window: acct.window.toString(), recorded: acct.spent.toString(), settled: settled.toString(), failedTransfers: trace.failedTransfers },
     },
   ];
@@ -152,12 +152,13 @@ export async function checkInv4(w: World, trace: Trace): Promise<Violation[]> {
     });
   }
   await w.backend.settle();
-  const remaining = (await w.backend.accessKeys(w.cfg.guardId)).filter((k) => w.agentKeyring.has(k.publicKey));
+  // Only the agent ever holds keys on the guard account, so after revoke there must be none.
+  const remaining = await w.backend.accessKeys(w.cfg.guardId);
   for (const k of remaining)
     out.push({
       invariant: "INV-4",
-      message: `agent still holds ${k.permission.kind} key ${short(k.publicKey)} after owner revoke`,
-      evidence: { publicKey: k.publicKey, permission: k.permission.kind },
+      message: `${w.agentKeyring.has(k.publicKey) ? "agent" : "non-owner"} ${k.permission.kind} key ${short(k.publicKey)} still on the guard after owner revoke`,
+      evidence: { publicKey: k.publicKey, permission: k.permission.kind, agentControlled: w.agentKeyring.has(k.publicKey) },
     });
 
   const free = await w.freeBalance();
@@ -173,8 +174,8 @@ export async function checkInv4(w: World, trace: Trace): Promise<Violation[]> {
     if (wd.rejected || wd.status?.kind !== "success" || received < amount)
       out.push({
         invariant: "INV-4",
-        message: `owner could not withdraw ${formatNear(amount)} NEAR of free balance: ${
-          wd.rejected?.message ?? (wd.status?.kind === "failure" ? wd.status.error : `received only ${formatNear(received)} NEAR`)
+        message: `owner could not withdraw ${fmtNear(amount)} of free balance: ${
+          wd.rejected?.message ?? (wd.status?.kind === "failure" ? wd.status.error : `received only ${fmtNear(received)}`)
         }`,
         evidence: { requested: amount.toString(), received: received.toString(), txHash: wd.txHash },
       });

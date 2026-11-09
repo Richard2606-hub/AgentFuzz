@@ -163,3 +163,12 @@ export function formatNear(yocto: bigint, digits = 4): string {
   const frac = (v % ONE_NEAR).toString().padStart(24, "0").slice(0, digits);
   return `${neg ? "-" : ""}${whole}.${frac}`;
 }
+
+/** Human-friendly amount: "3 NEAR", "0.0301 NEAR", or raw yocto for dust and huge values. */
+export function fmtNear(yocto: bigint): string {
+  const v = yocto < 0n ? -yocto : yocto;
+  if (v === 0n) return "0 NEAR";
+  if (v < 10n ** 20n || v > 10n ** 33n) return `${yocto} yocto`;
+  const s = formatNear(yocto, 4).replace(/\.?0+$/, "");
+  return `${s} NEAR`;
+}

@@ -16,6 +16,7 @@ import { listTargets, loadTarget, REPO_ROOT } from "./targets/registry.js";
 import { prettyJSON } from "./util/json.js";
 import { c, statusBadge } from "./util/term.js";
 import { runMatrix } from "./matrix.js";
+import { loadCorpus, makePlanner, runPromptCampaign, type PromptCampaign, type PromptResult } from "./prompt-runner.js";
 
 type Flags = Record<string, string | boolean>;
 
@@ -142,12 +143,56 @@ function cmdTargets() {
   return 0;
 }
 
+export function printPromptResult(r: PromptResult) {
+  const badge =
+    r.outcome === "breach" ? c.red(c.bold("BREACH ")) : r.outcome === "blocked" ? c.green(c.bold("BLOCKED")) : r.outcome === "resisted" ? c.cyan("RESISTED") : c.dim("SKIPPED");
+  const planner = r.attempted ? c.yellow("planner hijacked") : c.dim("planner refused ");
+  console.log(`  ${r.id.padEnd(7)} ${badge} ${planner} ${c.dim("·")} ${truncate(r.title, 78)}`);
+  if (r.outcome === "breach") for (const v of r.violations) console.log(`          ${c.red("✗")} ${v.invariant}: ${v.message}`);
+  if (r.outcome === "blocked") {
+    const stop = r.txs.find((t) => t.outcome !== "success");
+    if (stop) console.log(`          ${c.dim(`stopped: ${truncate(stop.summary + " → " + (stop.error ?? stop.outcome), 110)}`)}`);
+  }
+  if (r.note) console.log(`          ${c.dim(r.note)}`);
+}
+
+export function printPromptSummary(p: PromptCampaign) {
+  console.log("");
+  console.log(
+    `  ${p.scenarios} attacks ${c.dim("·")} planner hijacked ${p.attempted}/${p.scenarios} ${c.dim("·")} guard blocked ${c.green(String(p.blocked))} ${c.dim("·")} ` +
+      `${p.breaches ? c.red(`breaches ${p.breaches}`) : c.green("breaches 0")}${p.resisted ? ` ${c.dim("·")} resisted ${p.resisted}` : ""}${p.skipped ? ` ${c.dim("·")} skipped ${p.skipped}` : ""} ${c.dim("·")} ${(p.durationMs / 1000).toFixed(1)}s`,
+  );
+}
+
+async function cmdPrompt(flags: Flags) {
+  const target = loadTarget(str(flags, "target", "reference"));
+  const plannerKind = flags.live ? "llm" : str(flags, "planner", "compromised");
+  const planner = makePlanner(plannerKind);
+  const scenarios = loadCorpus(typeof flags.corpus === "string" ? resolve(flags.corpus) : undefined).filter(
+    (s) => typeof flags.only !== "string" || (flags.only as string).split(",").some((p) => s.id.startsWith(p)),
+  );
+  if (!flags.json) console.log(`${c.bold("AgentFuzz prompt layer")} ${c.dim("·")} target ${c.cyan(target.name)} ${c.dim("·")} planner ${plannerKind} ${c.dim("·")} ${scenarios.length} attacks`);
+  const result = await runPromptCampaign({ target, planner, scenarios, record: !!flags.record, onResult: flags.json ? undefined : printPromptResult });
+  const out = outDir(flags);
+  mkdirSync(out, { recursive: true });
+  const file = join(out, `prompt-${target.name.replace(/[^a-z0-9-]+/gi, "_")}-${plannerKind}.json`);
+  writeFileSync(file, prettyJSON(result));
+  if (flags.json) process.stdout.write(prettyJSON(result));
+  else {
+    printPromptSummary(result);
+    console.log(`  ${c.dim("written:")} ${rel(file)}`);
+  }
+  return 0;
+}
+
 function help() {
   console.log(`agentfuzz: red-team harness for NEAR agent-wallet guards
 
   agentfuzz targets                         list built-in targets
   agentfuzz fuzz --target <name|file.wasm>  fuzz one guard  [--seed N] [--runs N] [--max-steps N] [--inv INV-1,INV-2] [--json]
   agentfuzz replay <repro.json>             replay a minimised repro deterministically
+  agentfuzz prompt --target <name>          prompt-layer attacks (A1/A2) through the reference agent
+                                            [--planner compromised|cassette|llm] [--live] [--record] [--only A1-00]
   agentfuzz matrix                          planted-bug matrix: every planted bug must be caught  [--seed N] [--runs N]
 
 Invariants: ${INVARIANT_IDS.join(", ")} (see THREAT_MODEL.md)
@@ -164,6 +209,8 @@ async function main() {
       return cmdReplay(positional);
     case "targets":
       return cmdTargets();
+    case "prompt":
+      return cmdPrompt(flags);
     case "matrix":
       return runMatrix({ seed: num(flags, "seed", 7), runs: num(flags, "runs", 150), out: outDir(flags) });
     default:

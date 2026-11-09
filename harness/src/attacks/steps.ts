@@ -4,7 +4,7 @@
  * Steps are symbolic ("pay cap+1 to look-alike #2", "wait 2 windows + 1 block") so a minimised
  * repro reads like a test case and replays identically on any backend.
  */
-import { formatNear, near } from "../near/keys.js";
+import { fmtNear, near } from "../near/keys.js";
 import type { Action, TxResult } from "../near/types.js";
 import type { ProbeOutcome, World } from "../world.js";
 
@@ -220,7 +220,7 @@ export async function executeStep(w: World, step: Step, trace: Trace): Promise<v
   const agentPay = async (to: ReceiverRef, amount: AmountRef) => {
     const receiver = resolveReceiver(w, to);
     const amt = await resolveAmount(w, amount);
-    return { tx: w.agentTx(w.adapter.pay(receiver, amt)), summary: `pay(${receiver || '""'}, ${formatNear(amt)} NEAR)` };
+    return { tx: w.agentTx(w.adapter.pay(receiver, amt)), summary: `pay(${receiver || '""'}, ${fmtNear(amt)})` };
   };
 
   switch (step.k) {
@@ -352,7 +352,7 @@ export async function executeStep(w: World, step: Step, trace: Trace): Promise<v
         const amount = free > near("0.01") ? free - near("0.01") : 0n;
         if (amount === 0n) continue;
         const r = await w.exec(w.rawAgentTx(w.cfg.attackerId, [{ type: "Transfer", deposit: amount }], k.publicKey));
-        rec.txs.push(record("agent", `direct transfer ${formatNear(amount)} NEAR to attacker with full key`, r));
+        rec.txs.push(record("agent", `direct transfer ${fmtNear(amount)} to attacker with full key`, r));
       }
       if (!rec.txs.length) rec.description += " (no escalated keys: no-op)";
       break;
@@ -390,7 +390,7 @@ export async function executeStep(w: World, step: Step, trace: Trace): Promise<v
         const amount = (free * BigInt(step.pct)) / 100n;
         if (amount === 0n) break;
         const r = await w.exec(w.ownerTx(w.adapter.withdraw(amount)));
-        rec.txs.push(record("owner", `withdraw(${formatNear(amount)} NEAR)`, r));
+        rec.txs.push(record("owner", `withdraw(${fmtNear(amount)})`, r));
       }
       break;
     }

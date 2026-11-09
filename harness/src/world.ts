@@ -152,9 +152,13 @@ export class World {
     return bal > stake ? bal - stake : 0n;
   }
 
-  /** Is this outflow agent-authorised (signed on the guard account by an agent-controlled key)? */
-  isAgentSigned(signerId: string, publicKey: string): boolean {
-    return signerId === this.cfg.guardId && this.agentKeyring.has(publicKey);
+  /**
+   * Is this outflow agent-side (signed on the guard account)? The guard account holds no owner
+   * key, so anything it signs was authorised by the agent's key or by a key the agent (or an
+   * injected attacker) managed to install. Owner withdrawals are signed by the owner account.
+   */
+  isAgentSigned(signerId: string, _publicKey: string): boolean {
+    return signerId === this.cfg.guardId;
   }
 
   allowedAgentMethods(): string[] {
