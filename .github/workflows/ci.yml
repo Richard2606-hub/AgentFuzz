@@ -1,0 +1,73 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    name: harness (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22]
+    defaults:
+      run:
+        working-directory: harness
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: harness/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - name: unit + integration tests (incl. planted-bug matrix)
+        run: npm test
+      - name: planted-bug gate (fixed seed; fails if any planted bug is missed)
+        run: node bin/agentfuzz.mjs matrix --seed 7 --runs 150
+      - name: fixed-seed smoke fuzz + offline demo
+        run: node bin/agentfuzz.mjs demo-offline --seed 42 --runs 100 --no-web
+      - name: scorecard is reproducible
+        run: node bin/agentfuzz.mjs verify ../out/scorecard.json
+      - uses: actions/upload-artifact@v4
+        if: matrix.node == 22
+        with:
+          name: agentfuzz-out
+          path: out/
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install pinned toolchain (rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: contract unit tests
+        run: cargo test --workspace
+      - name: fresh wasm build
+        run: node scripts/build-contracts.mjs
+      - name: artifact drift (informational; committed builds come from another host)
+        run: git diff --stat -- artifacts/ || true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: planted-bug matrix against the fresh build
+        working-directory: harness
+        run: npm ci && node bin/agentfuzz.mjs matrix --seed 7 --runs 150
+
+  sandbox:
+    name: near-workspaces sandbox (real nearcore)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tests/sandbox
+      - run: cargo test --manifest-path tests/sandbox/Cargo.toml -- --nocapture

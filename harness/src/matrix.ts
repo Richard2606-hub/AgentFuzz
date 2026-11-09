@@ -25,7 +25,7 @@ export interface MatrixRow {
 export async function computeMatrix(seed: number, runs: number, filter?: (name: string) => boolean): Promise<{ rows: MatrixRow[]; results: CampaignResult[] }> {
   const rows: MatrixRow[] = [];
   const results: CampaignResult[] = [];
-  const targets = listTargets().filter((t) => t.expectBroken !== undefined && t.name !== "naive" && (!filter || filter(t.name)));
+  const targets = listTargets().filter((t) => t.expectBroken !== undefined && t.name !== "naive" && !t.name.startsWith("tp:") && (!filter || filter(t.name)));
   for (const spec of targets) {
     const target = loadTarget(spec.name);
     const expected = spec.expectBroken ?? [];

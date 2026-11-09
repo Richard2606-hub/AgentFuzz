@@ -2,9 +2,9 @@
  * Target registry: which guard wasm to attack, through which adapter, and (for the planted-bug
  * matrix) which invariants each target is expected to break.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { sha256Hex } from "../near/keys.js";
 import { guardV1, guardV1WithRotate, type GuardAdapter } from "./adapter.js";
 import type { InvariantId } from "../invariants/types.js";
@@ -94,4 +94,50 @@ export function loadTarget(nameOrPath: string, adapter?: GuardAdapter): LoadedTa
     throw new Error(`wasm not found for target '${spec.name}': ${spec.wasmPath}\nRun: node scripts/build-contracts.mjs`);
   const wasm = new Uint8Array(readFileSync(spec.wasmPath));
   return { ...spec, wasm, wasmSha256: sha256Hex(wasm) };
+}
+
+export const THIRD_PARTY_DIR = join(REPO_ROOT, "targets", "third-party");
+
+export interface ThirdPartyManifest {
+  name: string;
+  description: string;
+  repo: string;
+  commit: string;
+  license: string;
+  /** Path to the compiled wasm, relative to the manifest. */
+  wasm: string;
+  /** "agentfuzz-guard-v1" or a path (relative to the manifest) to an ESM module exporting a GuardAdapter. */
+  adapter: string;
+  /** Author consent to appear in the public scorecard. Default false. */
+  publish?: boolean;
+  expectBroken?: InvariantId[];
+}
+
+/** Register every targets/third-party/<dir>/target.json. Returns the registered names. */
+export async function loadThirdPartyTargets(dir = THIRD_PARTY_DIR): Promise<string[]> {
+  if (!existsSync(dir)) return [];
+  const names: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name.startsWith("_")) continue;
+    const base = join(dir, entry.name);
+    const manifestPath = join(base, "target.json");
+    if (!existsSync(manifestPath)) continue;
+    const m = JSON.parse(readFileSync(manifestPath, "utf8")) as ThirdPartyManifest;
+    let adapter: GuardAdapter = guardV1;
+    if (m.adapter !== "agentfuzz-guard-v1") {
+      const mod = await import(pathToFileURL(resolve(base, m.adapter)).href);
+      adapter = (mod.default ?? mod.adapter) as GuardAdapter;
+      if (!adapter?.pay || !adapter?.initCall) throw new Error(`${manifestPath}: adapter module must export a GuardAdapter`);
+    }
+    registerTarget({
+      name: m.name,
+      description: `${m.description} (${m.repo} @ ${m.commit}, ${m.license})`,
+      wasmPath: resolve(base, m.wasm),
+      adapter,
+      expectBroken: m.expectBroken,
+      source: `${m.repo}@${m.commit}`,
+    });
+    names.push(m.name);
+  }
+  return names;
 }

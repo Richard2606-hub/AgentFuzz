@@ -12,12 +12,14 @@ import { join, relative, resolve } from "node:path";
 import { INVARIANTS, INVARIANT_IDS, type InvariantId } from "./invariants/types.js";
 import { formatNear } from "./near/keys.js";
 import { loadRepro, replay, runCampaign, type CampaignEvent, type CampaignResult } from "./runner.js";
-import { listTargets, loadTarget, REPO_ROOT } from "./targets/registry.js";
+import { listTargets, loadTarget, loadThirdPartyTargets, REPO_ROOT } from "./targets/registry.js";
 import { prettyJSON } from "./util/json.js";
 import { c, statusBadge } from "./util/term.js";
 import { runMatrix } from "./matrix.js";
 import { loadCorpus, makePlanner, runPromptCampaign, type PromptCampaign, type PromptResult } from "./prompt-runner.js";
 import { cmdAnchor, cmdDemoOffline, cmdReport, cmdScoreboardDeploy, cmdVerify } from "./cli-report.js";
+import { llmConfigFromEnv, openaiClient, resolveModel } from "./agent/planners.js";
+import { generateCorpus } from "./generators/prompt.js";
 
 type Flags = Record<string, string | boolean>;
 
@@ -186,6 +188,44 @@ async function cmdPrompt(flags: Flags) {
   return 0;
 }
 
+async function cmdCorpus(positional: string[], flags: Flags) {
+  const sub = positional[0] ?? "list";
+  if (sub === "list") {
+    const all = loadCorpus();
+    const by = (k: (s: (typeof all)[number]) => string) => Object.entries(all.reduce<Record<string, number>>((m, s) => ((m[k(s)] = (m[k(s)] ?? 0) + 1), m), {}));
+    console.log(`${all.length} scenarios · by class ${by((s) => s.class).map(([k, v]) => `${k}:${v}`).join(" ")} · by source ${by((s) => s.generator.source).map(([k, v]) => `${k}:${v}`).join(" ")}`);
+    for (const s of all) console.log(`  ${s.id.padEnd(8)} ${s.class} ${c.dim(s.channel.padEnd(12))} ${s.title}${s.cassettes?.length ? c.dim(` [${s.cassettes.length} cassette]`) : ""}`);
+    return 0;
+  }
+  if (sub !== "generate") throw new Error("usage: agentfuzz corpus list | corpus generate --class A1|A2 --n 10");
+  const cfg = llmConfigFromEnv();
+  if (!cfg) throw new Error("corpus generate needs NEAR_AI_API_KEY (see .env.example); offline runs use the committed corpus");
+  const client = openaiClient(cfg);
+  const model = await resolveModel(client, cfg);
+  const cls = str(flags, "class", "A1") as "A1" | "A2";
+  const n = num(flags, "n", 8);
+  console.log(`${c.bold("AgentFuzz corpus generate")} ${c.dim("·")} ${cls} × ${n} ${c.dim("·")} model ${model} @ ${cfg.baseURL}`);
+  const r = await generateCorpus({
+    cls,
+    n,
+    complete: async (system, user) => {
+      const res = await client.chat.completions.create({
+        model,
+        temperature: Number(process.env.AGENTFUZZ_TEMPERATURE ?? 0.9),
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+      });
+      return { text: res.choices[0]?.message?.content ?? "", model };
+    },
+  });
+  for (const s of r.added) console.log(`  ${c.green("+")} ${s.id} ${s.title}`);
+  for (const i of r.issues) console.log(`  ${c.yellow("!")} candidate ${i.index}: ${i.reason}`);
+  console.log(`  added ${r.added.length}, dropped ${r.dropped} duplicates, ${r.issues.length} invalid → ${rel(r.file)}`);
+  return 0;
+}
+
 function help() {
   console.log(`agentfuzz: red-team harness for NEAR agent-wallet guards
 
@@ -201,6 +241,8 @@ function help() {
   agentfuzz anchor [scorecard.json]         anchor an existing scorecard  [--network nearsim|testnet]
   agentfuzz scoreboard-deploy               deploy artifacts/scoreboard.wasm to testnet (needs .env credentials)
   agentfuzz demo-offline                    the full demo: no API keys, no network
+  agentfuzz corpus list                     show the prompt-layer corpus
+  agentfuzz corpus generate --class A1 --n 8  write new attacks with NEAR AI Cloud (validated, de-duplicated)
 
 Invariants: ${INVARIANT_IDS.join(", ")} (see THREAT_MODEL.md)
 Balances are in NEAR; e.g. ${formatNear(10n ** 24n)} = 1 NEAR`);
@@ -209,6 +251,7 @@ Balances are in NEAR; e.g. ${formatNear(10n ** 24n)} = 1 NEAR`);
 
 async function main() {
   const { cmd, positional, flags } = parseArgs(process.argv.slice(2));
+  await loadThirdPartyTargets();
   switch (cmd) {
     case "fuzz":
       return cmdFuzz(flags);
@@ -226,6 +269,8 @@ async function main() {
       return cmdAnchor(positional, flags, outDir(flags));
     case "scoreboard-deploy":
       return cmdScoreboardDeploy();
+    case "corpus":
+      return cmdCorpus(positional, flags);
     case "demo-offline":
     case "demo":
       return cmdDemoOffline(flags, outDir(flags), { campaign: printCampaignResult, promptSummary: printPromptSummary, promptResult: printPromptResult });

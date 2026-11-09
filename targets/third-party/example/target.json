@@ -1,0 +1,11 @@
+{
+  "name": "tp:example",
+  "description": "Adapter template (wraps AgentFuzz's own reference guard; copy and adapt for a real third-party guard)",
+  "repo": "https://github.com/agentfuzz/agentfuzz",
+  "commit": "local",
+  "license": "MIT",
+  "wasm": "../../../artifacts/guard_reference.wasm",
+  "adapter": "./adapter.mjs",
+  "publish": false,
+  "expectBroken": []
+}
