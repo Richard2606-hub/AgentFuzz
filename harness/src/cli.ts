@@ -17,6 +17,7 @@ import { prettyJSON } from "./util/json.js";
 import { c, statusBadge } from "./util/term.js";
 import { runMatrix } from "./matrix.js";
 import { loadCorpus, makePlanner, runPromptCampaign, type PromptCampaign, type PromptResult } from "./prompt-runner.js";
+import { cmdAnchor, cmdDemoOffline, cmdReport, cmdScoreboardDeploy, cmdVerify } from "./cli-report.js";
 
 type Flags = Record<string, string | boolean>;
 
@@ -194,6 +195,12 @@ function help() {
   agentfuzz prompt --target <name>          prompt-layer attacks (A1/A2) through the reference agent
                                             [--planner compromised|cassette|llm] [--live] [--record] [--only A1-00]
   agentfuzz matrix                          planted-bug matrix: every planted bug must be caught  [--seed N] [--runs N]
+  agentfuzz report                          fuzz + prompt every target, write scorecard JSON/HTML, anchor hash
+                                            [--targets reference,naive] [--anchor auto|nearsim|testnet|local|none]
+  agentfuzz verify [scorecard.json]         recompute body hash, re-run deterministically, check on-chain anchor
+  agentfuzz anchor [scorecard.json]         anchor an existing scorecard  [--network nearsim|testnet]
+  agentfuzz scoreboard-deploy               deploy artifacts/scoreboard.wasm to testnet (needs .env credentials)
+  agentfuzz demo-offline                    the full demo: no API keys, no network
 
 Invariants: ${INVARIANT_IDS.join(", ")} (see THREAT_MODEL.md)
 Balances are in NEAR; e.g. ${formatNear(10n ** 24n)} = 1 NEAR`);
@@ -211,6 +218,17 @@ async function main() {
       return cmdTargets();
     case "prompt":
       return cmdPrompt(flags);
+    case "report":
+      return cmdReport(flags, outDir(flags));
+    case "verify":
+      return cmdVerify(positional, flags);
+    case "anchor":
+      return cmdAnchor(positional, flags, outDir(flags));
+    case "scoreboard-deploy":
+      return cmdScoreboardDeploy();
+    case "demo-offline":
+    case "demo":
+      return cmdDemoOffline(flags, outDir(flags), { campaign: printCampaignResult, promptSummary: printPromptSummary, promptResult: printPromptResult });
     case "matrix":
       return runMatrix({ seed: num(flags, "seed", 7), runs: num(flags, "runs", 150), out: outDir(flags) });
     default:
