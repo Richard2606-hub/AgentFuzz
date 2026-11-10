@@ -25,6 +25,7 @@ const BUGS = [
   "bug-ignore-promise-result",
   "bug-withdraw-underflow",
   "bug-no-rekey",
+  "bug-reset-on-failure", // opt-in: not part of the default guard_naive.wasm
 ];
 
 const builds = [

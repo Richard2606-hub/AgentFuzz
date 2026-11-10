@@ -4,8 +4,9 @@
 import { join, relative } from "node:path";
 import { anchorNearsim, anchorTestnet, deployScoreboardTestnet, testnetConfigFromEnv } from "./anchor/anchor.js";
 import { loadCorpus, makePlanner, runPromptCampaign } from "./prompt-runner.js";
-import { buildScorecard, targetScore, type ScorecardSettings } from "./report/scorecard.js";
-import { corpusSha256, generateReport, loadScorecard, verifyScorecard, writeScorecard, type AnchorMode } from "./report.js";
+import { parseGenerator } from "./generators/contract.js";
+import { buildScorecard, targetScore } from "./report/scorecard.js";
+import { corpusSha256, generateReport, makeSettings, loadScorecard, verifyScorecard, writeScorecard, type AnchorMode } from "./report.js";
 import { runCampaign } from "./runner.js";
 import { loadTarget } from "./targets/registry.js";
 import { c } from "./util/term.js";
@@ -23,6 +24,7 @@ export async function cmdReport(flags: Flags, outDir: string): Promise<number> {
     seed: num(flags, "seed", 42),
     runs: num(flags, "runs", 200),
     maxSteps: num(flags, "max-steps", 20),
+    generator: parseGenerator(flags.generator),
     planner: str(flags, "planner", "compromised"),
     anchor: str(flags, "anchor", "auto") as AnchorMode,
     outDir,
@@ -96,6 +98,7 @@ export async function cmdDemoOffline(flags: Flags, outDir: string, printers: Dem
   const seed = num(flags, "seed", 42);
   const runs = num(flags, "runs", 200);
   const maxSteps = num(flags, "max-steps", 20);
+  const generator = parseGenerator(flags.generator);
   const started = Date.now();
   const banner = (s: string) => console.log(`\n${c.bold(c.magenta("▶"))} ${c.bold(s)}`);
   console.log(c.bold("AgentFuzz demo-offline") + c.dim("  ·  no API keys, no network, deterministic from seed ") + seed);
@@ -108,7 +111,7 @@ export async function cmdDemoOffline(flags: Flags, outDir: string, printers: Dem
   for (const name of ["naive", "reference"]) {
     const target = loadTarget(name);
     banner(`make fuzz TARGET=${name}`);
-    const campaign = await runCampaign({ target, seed, runs, maxSteps, outDir });
+    const campaign = await runCampaign({ target, seed, runs, maxSteps, generator, outDir });
     printers.campaign(campaign);
     banner(`prompt layer vs ${name}: ${scenarios.length} injection / tool-poisoning attacks, planner fully hijacked`);
     const prompt = await runPromptCampaign({ target, planner, scenarios });
@@ -118,7 +121,7 @@ export async function cmdDemoOffline(flags: Flags, outDir: string, printers: Dem
   }
 
   banner("scorecard + tamper-evident anchor");
-  const settings: ScorecardSettings = { seed, runs, maxSteps, backend: "nearsim", planner: "compromised", targets, corpusSha256: corpusSha256() };
+  const settings = makeSettings({ seed, runs, maxSteps, backend: "nearsim", planner: "compromised", targets, corpusSha256: corpusSha256(), generator });
   const ordered = targets.map((t) => scores.find((s) => s.name === t)!.score);
   const sc = buildScorecard(settings, ordered, Date.now() - started);
   sc.anchors.push(await anchorNearsim(sc));

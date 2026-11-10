@@ -76,6 +76,14 @@
       "sha256": "5ceb2561f560219512db25e4ee9e9a17327b576b534ba1e9a9ac30e712073ee0",
       "bytes": 186709
     },
+    "guard_naive__bug-reset-on-failure.wasm": {
+      "package": "guard-naive",
+      "features": [
+        "bug-reset-on-failure"
+      ],
+      "sha256": "b87060603e0d6870842d4e3347f63bc84ac0c12db4f761b04f087cbcd7bea9cc",
+      "bytes": 186943
+    },
     "guard_naive__fixed.wasm": {
       "package": "guard-naive",
       "features": [],

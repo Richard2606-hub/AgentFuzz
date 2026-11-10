@@ -21,6 +21,7 @@ import { loadCorpus, makePlanner, runPromptCampaign, type PromptCampaign, type P
 import { cmdAnchor, cmdDemoOffline, cmdReport, cmdScoreboardDeploy, cmdVerify } from "./cli-report.js";
 import { sandboxBackendFactory, differential } from "./differential.js";
 import { llmConfigFromEnv, openaiClient, resolveModel } from "./agent/planners.js";
+import { DEFAULT_GENERATOR, parseGenerator } from "./generators/contract.js";
 import { generateCorpus } from "./generators/prompt.js";
 
 type Flags = Record<string, string | boolean>;
@@ -49,8 +50,9 @@ export function outDir(flags: Flags): string {
   return resolve(REPO_ROOT, str(flags, "out", "out"));
 }
 
-function printCampaignHeader(target: string, seed: number, runs: number, backend = "nearsim") {
-  console.log(`${c.bold("AgentFuzz")} ${c.dim("·")} target ${c.cyan(target)} ${c.dim("·")} seed ${seed} ${c.dim("·")} ${runs} runs/invariant ${c.dim("·")} backend ${backend}`);
+function printCampaignHeader(target: string, seed: number, runs: number, backend = "nearsim", generator?: number) {
+  const gen = generator === undefined ? "" : ` ${c.dim("·")} generator v${generator}`;
+  console.log(`${c.bold("AgentFuzz")} ${c.dim("·")} target ${c.cyan(target)} ${c.dim("·")} seed ${seed} ${c.dim("·")} ${runs} runs/invariant ${c.dim("·")} backend ${backend}${gen}`);
 }
 
 export function printCampaignResult(r: CampaignResult) {
@@ -100,14 +102,16 @@ async function cmdFuzz(flags: Flags) {
   const seed = num(flags, "seed", 42);
   const runs = num(flags, "runs", 200);
   const inv = typeof flags.inv === "string" ? (flags.inv.split(",") as InvariantId[]) : undefined;
+  const generator = parseGenerator(flags.generator);
   const target = loadTarget(targetName);
-  if (!flags.json) printCampaignHeader(target.name, seed, runs);
+  if (!flags.json) printCampaignHeader(target.name, seed, runs, "nearsim", generator);
   const out = outDir(flags);
   const result = await runCampaign({
     target,
     seed,
     runs,
     maxSteps: num(flags, "max-steps", 20),
+    generator,
     invariants: inv,
     outDir: out,
     onEvent: flags.json ? undefined : progress,
@@ -137,6 +141,7 @@ async function cmdDiff(flags: Flags) {
     seed,
     runs,
     maxSteps,
+    generator: parseGenerator(flags.generator),
     onRow: (r) => {
       const mark = r.agree ? c.green("✓") : c.red("✗ MISMATCH");
       const diffStr = r.agree
@@ -277,6 +282,9 @@ function help() {
   agentfuzz corpus list                     show the prompt-layer corpus
   agentfuzz corpus generate --class A1 --n 8  write new attacks with NEAR AI Cloud (validated, de-duplicated)
 
+  fuzz, diff, matrix, report and demo-offline take --generator N (default ${DEFAULT_GENERATOR}); verify re-uses the
+  generator recorded in the scorecard, so scores made with an older generator still verify.
+
 Invariants: ${INVARIANT_IDS.join(", ")} (see THREAT_MODEL.md)
 Balances are in NEAR; e.g. ${formatNear(10n ** 24n)} = 1 NEAR`);
   return 0;
@@ -311,7 +319,7 @@ async function main() {
     case "demo":
       return cmdDemoOffline(flags, outDir(flags), { campaign: printCampaignResult, promptSummary: printPromptSummary, promptResult: printPromptResult });
     case "matrix":
-      return runMatrix({ seed: num(flags, "seed", 7), runs: num(flags, "runs", 150), out: outDir(flags) });
+      return runMatrix({ seed: num(flags, "seed", 7), runs: num(flags, "runs", 150), out: outDir(flags), generator: parseGenerator(flags.generator) });
     default:
       return help();
   }

@@ -3,3 +3,9 @@
 # (e.g. panics become bare `unreachable` traps and lose their messages).
 [target.wasm32-unknown-unknown]
 rustflags = ["--cfg", "near", "-C", "link-arg=-s"]
+
+# Contract unit tests pull in aws-lc-sys (near-sdk "unit-testing" -> near-crypto -> aws-lc-rs).
+# On Windows/MSVC it needs NASM unless told to use the prebuilt NASM objects shipped in the crate.
+# Harmless on Linux/macOS, where NASM isn't used.
+[env]
+AWS_LC_SYS_PREBUILT_NASM = "1"

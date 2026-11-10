@@ -44,6 +44,6 @@ describe("planted-bug matrix (end-to-end gate)", () => {
     const { rows } = await computeMatrix(7, 120);
     const failed = rows.filter((r) => !r.ok);
     expect(failed, JSON.stringify(failed, null, 2)).toEqual([]);
-    expect(rows.length).toBe(9);
+    expect(rows.length).toBe(10);
   });
 });

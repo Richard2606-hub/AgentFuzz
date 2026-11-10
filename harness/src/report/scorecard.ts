@@ -26,6 +26,8 @@ export interface ScorecardSettings {
   planner: string;
   targets: string[];
   corpusSha256: string;
+  /** Sequence generator version; absent means 1 (scorecards made before versioning). */
+  generator?: number;
 }
 
 export interface TargetScore {

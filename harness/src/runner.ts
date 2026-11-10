@@ -9,8 +9,9 @@ import fc from "fast-check";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { executeSequence, stepClass, type AttackClass, type Step, type StepRecord, type Trace } from "./attacks/steps.js";
-import { sequenceArb } from "./generators/contract.js";
+import { DEFAULT_GENERATOR, sequenceArb, type GeneratorVersion } from "./generators/contract.js";
 import { checkRun } from "./invariants/check.js";
+import { minimise } from "./minimise.js";
 import { INVARIANT_IDS, brokenIn, type InvariantId, type InvariantStatus, type RunVerdict, type Violation } from "./invariants/types.js";
 import type { Backend } from "./near/backend.js";
 import { sha256Hex } from "./near/keys.js";
@@ -81,6 +82,7 @@ export interface CampaignResult {
   attackCounts: Record<string, number>;
   durationMs: number;
   backend: string;
+  generator: GeneratorVersion;
   invariants: InvariantOutcome[];
   config: WorldConfig;
 }
@@ -90,6 +92,8 @@ export interface CampaignOptions {
   seed: number;
   runs: number;
   maxSteps?: number;
+  /** Sequence generator version (see generators/contract.ts); defaults to the latest. */
+  generator?: GeneratorVersion;
   invariants?: InvariantId[];
   cfg?: Partial<WorldConfig>;
   backendFactory?: BackendFactory;
@@ -107,6 +111,7 @@ export async function runCampaign(opts: CampaignOptions): Promise<CampaignResult
   const started = Date.now();
   const { target, seed, runs } = opts;
   const maxSteps = opts.maxSteps ?? 20;
+  const generator = opts.generator ?? DEFAULT_GENERATOR;
   const backendFactory = opts.backendFactory ?? simBackendFactory;
   const cfg: WorldConfig = { ...defaultConfig(`agentfuzz/${seed}`), ...opts.cfg };
   const ids = opts.invariants ?? INVARIANT_IDS;
@@ -136,7 +141,7 @@ export async function runCampaign(opts: CampaignOptions): Promise<CampaignResult
     opts.onEvent?.({ type: "invariant-start", id });
     let n = 0;
     const details = await fc.check(
-      fc.asyncProperty(sequenceArb(maxSteps), async (steps) => {
+      fc.asyncProperty(sequenceArb(maxSteps, generator), async (steps) => {
         const r = await run(steps);
         const broken = [...brokenIn(r.verdict)];
         opts.onEvent?.({ type: "run", id, n: ++n, steps: steps.length, broken });
@@ -146,7 +151,13 @@ export async function runCampaign(opts: CampaignOptions): Promise<CampaignResult
     );
 
     if (details.failed && details.counterexample) {
-      const steps = details.counterexample[0] as Step[];
+      let steps = details.counterexample[0] as Step[];
+      let numShrinks = details.numShrinks;
+      if (generator >= 2) {
+        const m = await minimise(steps, async (s) => brokenIn((await run(s)).verdict).has(id));
+        steps = m.steps;
+        numShrinks += m.applied;
+      }
       const r = await run(steps);
       const violation = r.verdict.violations.find((v) => v.invariant === id)!;
       const repro: Repro = {
@@ -157,7 +168,7 @@ export async function runCampaign(opts: CampaignOptions): Promise<CampaignResult
         violation,
         seed,
         fcPath: details.counterexamplePath ?? undefined,
-        numShrinks: details.numShrinks,
+        numShrinks,
         backend: backendFactory.name,
         config: cfg,
         steps,
@@ -195,6 +206,7 @@ export async function runCampaign(opts: CampaignOptions): Promise<CampaignResult
     attackCounts,
     durationMs: Date.now() - started,
     backend: backendFactory.name,
+    generator,
     invariants: outcomes,
     config: cfg,
   };

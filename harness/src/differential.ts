@@ -5,7 +5,7 @@
  */
 import fc from "fast-check";
 import { describeStep, type Step } from "./attacks/steps.js";
-import { sequenceArb } from "./generators/contract.js";
+import { sequenceArb, type GeneratorVersion } from "./generators/contract.js";
 import { brokenIn, type InvariantId } from "./invariants/types.js";
 import { evaluate, simBackendFactory, type BackendFactory } from "./runner.js";
 import { SandboxBackend } from "./sandbox/backend.js";
@@ -27,11 +27,12 @@ export async function differential(opts: {
   seed: number;
   runs: number;
   maxSteps: number;
+  generator?: GeneratorVersion;
   include?: Step[][];
   onRow?: (r: DiffRow) => void;
 }): Promise<DiffRow[]> {
   const cfg = defaultConfig(`agentfuzz/diff/${opts.seed}`);
-  const sampled = fc.sample(sequenceArb(opts.maxSteps), { seed: opts.seed, numRuns: opts.runs });
+  const sampled = fc.sample(sequenceArb(opts.maxSteps, opts.generator), { seed: opts.seed, numRuns: opts.runs });
   const sequences = [...(opts.include ?? []), ...sampled];
   const rows: DiffRow[] = [];
   for (const [index, steps] of sequences.entries()) {

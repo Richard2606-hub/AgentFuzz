@@ -47,17 +47,17 @@ Every claim in this README is a command. Expected output is abbreviated.
 | Do | See |
 |----|-----|
 | `make demo-offline` | The whole demo in ~10 s: naive guard **6/6 invariants BROKEN** with minimised repros, reference guard **6/6 invariants held**, prompt layer **20/20 blocked** on reference vs **6 breaches** on naive, scorecard written to `out/scorecard.html` and `web/index.html`, hash anchored through `scoreboard.wasm` |
-| `make fuzz TARGET=naive` | `INV-1 BROKEN … minimised repro (1 step, classes A6): same-block burst of 3 pays …` and one `repro saved: out/repro-naive-INV-*.json` per broken invariant |
-| `make fuzz TARGET=reference` | `INV-1 HELD … INV-6 HELD`, `all invariants held · ~270 attack sequences` |
-| `make fuzz TARGET=naive:bug-window-lag` | `INV-1 BROKEN` with a repro like `wait 2 window(s) …; pay cap; pay cap` (window-rollover bug, two transfers across a boundary) |
+| `make fuzz TARGET=naive` | `INV-1 BROKEN … minimised repro (1 step, classes A6): same-block burst of 2 pays …` and one `repro saved: out/repro-naive-INV-*.json` per broken invariant |
+| `make fuzz TARGET=reference` | `INV-1 HELD … INV-6 HELD`, `all invariants held · ~190 attack sequences`, INV-5 exercised in ~50 runs |
+| `make fuzz TARGET=naive:bug-window-lag` | `INV-1 BROKEN` with a repro like `wait 2 window(s) …; same-block burst of 2 pays: remaining budget, remaining budget` (window-rollover bug: after an idle period the cap stops applying) |
 | `cd harness && node bin/agentfuzz.mjs replay ../out/repro-naive-INV-1-*.json` | The same steps re-executed in a fresh world and `BROKEN INV-1: agent spent … cap is 3 NEAR` |
-| `make matrix` | `✓` for all 9 rows: each of the 7 planted bugs found by its expected invariant, both controls clean (`all 9 rows passed`) |
+| `make matrix` | `✓` for all 10 rows: each of the 8 planted bugs (7 in the default naive build + opt-in `bug-reset-on-failure`) found by its expected invariant, both controls clean (`all 10 rows passed`) |
 | `make prompt TARGET=reference` | 20 lines `BLOCKED planner hijacked …` with the contract/protocol error that stopped each; `breaches 0` |
 | `make prompt TARGET=naive` | `BREACH` on A1-002/A1-010/A1-012/A2-003 (prefix look-alikes) and A1-003/A2-006 (injected `rotate_key` → full-access key → balance drained) |
 | `make report` | `out/scorecard.json`, `out/scorecard.html`, `web/index.html`; run id `af-42-…`; anchors: testnet if `.env` is set, otherwise nearsim + `out/anchors.local.json` |
 | `make verify` | `✓ body hash matches … ✓ deterministic re-run reproduced the identical hash … verified` |
 | `cd harness && node bin/agentfuzz.mjs diff --target reference --runs 20` | Differential test: runs identical sequences on nearsim and real nearcore sandbox, confirming 20/20 agree |
-| `make test` | 32 contract unit tests (if Rust is installed) and 54 harness tests, including the planted-bug matrix |
+| `make test` | 32 contract unit tests (if Rust is installed) and 68 harness tests, including the planted-bug matrix and a check that the published scorecard still reproduces |
 | `make sandbox-test` (Linux/macOS) | The same wasm on a real nearcore sandbox via near-workspaces: INV-3/INV-4 hold on the reference guard; the naive key escalation and look-alike payment reproduce on nearcore |
 
 ## What it checks
@@ -97,14 +97,22 @@ scorecard JSON + static HTML ──► SHA-256 ──► scoreboard contract (te
 ```
 
 * **nearsim** ([`harness/src/sim`](harness/src/sim)) is why fuzzing is fast and fully
-  deterministic: thousands of attack sequences run in seconds, on any OS, from a seed, against the
-  exact wasm you deploy. A near-workspaces sandbox suite ([`tests/sandbox`](tests/sandbox)) checks
-  the same contracts on real nearcore.
+  deterministic: thousands of attack sequences run in seconds, from a seed, against the exact
+  wasm you deploy, with the same hash on Linux, Windows and macOS (CI checks all three). A
+  near-workspaces sandbox suite ([`tests/sandbox`](tests/sandbox)) checks the same contracts on
+  real nearcore.
 * **Minimised repros**: fast-check shrinks every failing sequence; `out/repro-*.json` contains the
   steps, seed, config and trace, and `agentfuzz replay` re-executes it.
 * **Reproducible scores**: the scorecard body has no timestamps, so `agentfuzz verify` re-runs the
   whole campaign and recomputes the identical hash; the hash is anchored in
   [`contracts/scoreboard`](contracts/scoreboard).
+* **Versioned generator**: improving the fuzzer must not invalidate published scores, so the
+  sequence generator is versioned (`--generator N`) and the scorecard records which one it used.
+  v2 (the default) draws longer sequences (about 9 steps instead of 4) and adds a delete-then-pay
+  failing-transfer step, "pay exactly the budget the guard says is left", longer idle periods and
+  allowance-exhausting drains, then minimises each repro further. Over 120 seeds at 30
+  runs/invariant it misses 1 of 840 hunts for the 7 original planted bugs, where v1 missed 81.
+  Old scorecards keep verifying with v1.
 
 Full component map: [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -191,14 +199,14 @@ node bin/agentfuzz.mjs demo-offline        # the demo
 node bin/agentfuzz.mjs fuzz --target naive
 node bin/agentfuzz.mjs matrix
 node bin/agentfuzz.mjs report && node bin/agentfuzz.mjs verify ../out/scorecard.json
-cargo test --workspace                     # contract unit tests (from the repo root, needs Rust)
+cargo test --workspace                     # contract unit tests (from the repo root, needs Rust; no NASM needed on Windows)
 ```
 
 ## Repository layout
 
 ```
 contracts/guard-reference/   well-built baseline guard (Rust, near-sdk 5.30.1) + 24 unit tests
-contracts/guard-naive/       same interface, 7 planted bugs as cargo features (BUGS.md)
+contracts/guard-naive/       same interface, 8 planted bugs as cargo features (7 on by default; BUGS.md)
 contracts/scoreboard/        report-hash anchoring contract + 5 unit tests
 artifacts/                   committed wasm builds (+ single-bug variants), manifest.json
 harness/src/sim/             nearsim: NEAR host ABI + chain model executing real wasm

@@ -27,7 +27,9 @@ export type AmountRef =
   | { kind: "u128max" }
   | { kind: "u64max" }
   | { kind: "pct"; pct: number }
-  | { kind: "free" };
+  | { kind: "free" }
+  /** Generator v2: the budget the guard itself reports as left this window, plus `d` yocto. */
+  | { kind: "remaining"; d: number };
 
 export const PROBES = [
   "transfer",
@@ -51,6 +53,8 @@ export type Step =
   | { k: "drain"; n: number }
   | { k: "exploit" }
   | { k: "failPayee" }
+  /** Generator v2: delete the payee that failPayee targets, then pay it (a guaranteed failing transfer). */
+  | { k: "failPay"; amount: AmountRef }
   | { k: "owner"; op: "revoke" | "rekey" | "withdraw"; pct: number };
 
 export function stepClass(s: Step): AttackClass | "owner" {
@@ -59,6 +63,7 @@ export function stepClass(s: Step): AttackClass | "owner" {
       return s.to.kind === "allowed" ? "A3" : "A5";
     case "burst":
     case "failPayee":
+    case "failPay":
       return "A6";
     case "wait":
       return "A4";
@@ -145,6 +150,20 @@ export async function resolveAmount(w: World, a: AmountRef): Promise<bigint> {
       return (cap * BigInt(a.pct)) / 100n;
     case "free":
       return w.freeBalance();
+    case "remaining": {
+      // What an attacker reads from the guard's own view. Guards without one, or whose view fails
+      // (e.g. an escalated key replaced or deleted the code), are treated as untouched.
+      const read = w.adapter.readAccounting;
+      let spent = 0n;
+      if (read) {
+        try {
+          spent = (await read((m, x) => w.view(m, x))).spent;
+        } catch {
+          spent = 0n;
+        }
+      }
+      return (cap > spent ? cap - spent : 0n) + BigInt(a.d);
+    }
   }
 }
 
@@ -162,6 +181,8 @@ export function describeAmount(a: AmountRef): string {
       return "u128::MAX";
     case "u64max":
       return "u64::MAX";
+    case "remaining":
+      return a.d ? `remaining budget+${a.d}y` : "remaining budget";
     default:
       return a.kind;
   }
@@ -188,6 +209,10 @@ export function describeStep(s: Step, w?: World): string {
       return "agent uses every key it controls to move funds directly";
     case "failPayee":
       return "delete an allowlisted payee so transfers to it fail";
+    case "failPay": {
+      const victim = w ? w.cfg.allowlist[w.cfg.allowlist.length - 1] : "the last allowlisted payee";
+      return `delete ${victim}, then agent pay(${victim}, ${describeAmount(s.amount)})`;
+    }
     case "owner":
       return `owner ${s.op}${s.op === "withdraw" ? ` ${s.pct}% of free balance` : ""}`;
   }
@@ -223,16 +248,33 @@ export async function executeStep(w: World, step: Step, trace: Trace): Promise<v
     return { tx: w.agentTx(w.adapter.pay(receiver, amt)), summary: `pay(${receiver || '""'}, ${fmtNear(amt)})` };
   };
 
+  const singlePay = async (to: ReceiverRef, amount: AmountRef) => {
+    const { tx, summary } = await agentPay(to, amount);
+    const r = await w.exec(tx);
+    if (r.rejected?.kind === "NotEnoughAllowance") trace.allowanceExhausted = true;
+    if (!r.rejected) trace.payTxs.add(r.txHash);
+    trace.failedTransfers += countFailedTransfers(r);
+    rec.txs.push(record("agent", summary, r));
+  };
+
+  // The payee failPayee/failPay delete: transfers to it fail from then on.
+  const deleteVictim = async () => {
+    const victim = w.cfg.allowlist[w.cfg.allowlist.length - 1];
+    if (w.deletedPayees.has(victim)) return;
+    const r = await w.exec({
+      signerId: victim,
+      publicKey: w.keys.payees.get(victim)!.publicKey,
+      receiverId: victim,
+      actions: [{ type: "DeleteAccount", beneficiaryId: w.cfg.allowlist[0] }],
+    });
+    if (!r.rejected && r.status?.kind === "success") w.deletedPayees.add(victim);
+    rec.txs.push(record("payee", `delete ${victim}`, r));
+  };
+
   switch (step.k) {
-    case "pay": {
-      const { tx, summary } = await agentPay(step.to, step.amount);
-      const r = await w.exec(tx);
-      if (r.rejected?.kind === "NotEnoughAllowance") trace.allowanceExhausted = true;
-      if (!r.rejected) trace.payTxs.add(r.txHash);
-      trace.failedTransfers += countFailedTransfers(r);
-      rec.txs.push(record("agent", summary, r));
+    case "pay":
+      await singlePay(step.to, step.amount);
       break;
-    }
     case "burst": {
       const subs: { hash: string; summary: string; rejected?: string }[] = [];
       for (const p of step.pays) {
@@ -357,19 +399,13 @@ export async function executeStep(w: World, step: Step, trace: Trace): Promise<v
       if (!rec.txs.length) rec.description += " (no escalated keys: no-op)";
       break;
     }
-    case "failPayee": {
-      const victim = w.cfg.allowlist[w.cfg.allowlist.length - 1];
-      if (w.deletedPayees.has(victim)) break;
-      const r = await w.exec({
-        signerId: victim,
-        publicKey: w.keys.payees.get(victim)!.publicKey,
-        receiverId: victim,
-        actions: [{ type: "DeleteAccount", beneficiaryId: w.cfg.allowlist[0] }],
-      });
-      if (!r.rejected && r.status?.kind === "success") w.deletedPayees.add(victim);
-      rec.txs.push(record("payee", `delete ${victim}`, r));
+    case "failPayee":
+      await deleteVictim();
       break;
-    }
+    case "failPay":
+      await deleteVictim();
+      await singlePay({ kind: "allowed", i: w.cfg.allowlist.length - 1 }, step.amount);
+      break;
     case "owner": {
       if (step.op === "revoke") {
         const r = await w.exec(w.ownerTx(w.adapter.revoke()));

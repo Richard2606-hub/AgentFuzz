@@ -10,11 +10,20 @@ concurrency:
 
 jobs:
   harness:
-    name: harness (node ${{ matrix.node }})
-    runs-on: ubuntu-latest
+    name: harness (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         node: [20, 22]
+        # nearsim must be deterministic on every OS: the test suite re-derives the published,
+        # testnet-anchored scorecard hash, so a platform difference fails here.
+        include:
+          - os: windows-latest
+            node: 22
+          - os: macos-latest
+            node: 22
     defaults:
       run:
         working-directory: harness
@@ -36,7 +45,7 @@ jobs:
       - name: scorecard is reproducible
         run: node bin/agentfuzz.mjs verify ../out/scorecard.json
       - uses: actions/upload-artifact@v4
-        if: matrix.node == 22
+        if: matrix.node == 22 && matrix.os == 'ubuntu-latest'
         with:
           name: agentfuzz-out
           path: out/
@@ -60,6 +69,17 @@ jobs:
       - name: planted-bug matrix against the fresh build
         working-directory: harness
         run: npm ci && node bin/agentfuzz.mjs matrix --seed 7 --runs 150
+
+  contracts-windows:
+    name: contract unit tests (windows, no NASM)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install pinned toolchain (rust-toolchain.toml)
+        run: rustup show active-toolchain; if (-not $?) { rustup toolchain install }
+      - uses: Swatinem/rust-cache@v2
+      - name: contract unit tests (aws-lc-sys uses prebuilt NASM objects, see .cargo/config.toml)
+        run: cargo test --workspace
 
   sandbox:
     name: near-workspaces sandbox (real nearcore)

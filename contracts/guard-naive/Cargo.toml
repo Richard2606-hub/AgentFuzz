@@ -28,6 +28,9 @@ bug-deferred-accounting = []
 bug-ignore-promise-result = []
 bug-withdraw-underflow = []
 bug-no-rekey = []
+# Opt-in (not in default): added after the default build was published and anchored on testnet,
+# so the default wasm, and every scorecard made from it, stays byte-identical.
+bug-reset-on-failure = []
 
 [dependencies]
 near-sdk = { workspace = true }

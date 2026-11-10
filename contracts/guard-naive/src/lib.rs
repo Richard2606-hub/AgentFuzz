@@ -179,10 +179,10 @@ impl GuardNaive {
         #[cfg(not(feature = "bug-deferred-accounting"))]
         {
             // BUG (bug-ignore-promise-result): a failed transfer is never released.
-            #[cfg(not(feature = "bug-ignore-promise-result"))]
+            #[cfg(not(any(feature = "bug-ignore-promise-result", feature = "bug-reset-on-failure")))]
             if !ok && same_window {
                 self.spent_in_window = self.spent_in_window.saturating_sub(amount.0);
-            }
+            } #[cfg(feature = "bug-reset-on-failure")] if !ok && same_window { self.spent_in_window = 0; } // BUG (bug-reset-on-failure): one failed transfer wipes the whole window's spend. Kept on one line so other builds' panic locations don't move.
             #[cfg(feature = "bug-ignore-promise-result")]
             let _ = (same_window, amount);
         }

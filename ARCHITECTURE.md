@@ -25,7 +25,7 @@ flowchart TD
 | Component | Folder | Responsibility |
 |-----------|--------|----------------|
 | Reference guard | `contracts/guard-reference` | The well-built baseline (Rust, near-sdk 5.30.1). Fixed windows aligned to init time, spend reserved before the transfer and released on failure, exact-match allowlist, agent key scoped to `pay`, owner revoke / withdraw / re-key / policy. 24 unit tests. |
-| Naive guard | `contracts/guard-naive` | Same interface + `rotate_key`, seven planted bugs as cargo features (`BUGS.md`). |
+| Naive guard | `contracts/guard-naive` | Same interface + `rotate_key`, eight planted bugs as cargo features, seven of them in the default build (`BUGS.md`). |
 | Scoreboard | `contracts/scoreboard` | Append-only `run_id → {sha256, target, commit, submitter, block}` registry; caller pays storage. 5 unit tests. |
 | Wasm artifacts | `artifacts/`, `scripts/build-contracts.mjs` | Committed builds of every contract and every single-bug variant, with `manifest.json` (sha256 per file). Built with `--cfg near` (what `cargo near build` sets) and path remapping. |
 | nearsim | `harness/src/sim` | In-process NEAR runtime. `vm.ts` implements the `env.*` host-function ABI over Node's WebAssembly so the **real compiled contracts** execute; `chain.ts` models accounts, access keys (full / function-call with receiver, method list, allowance), transaction validation and fees, receipts executed block by block, promises/callbacks/joint promises/`promise_return`, data receipts, deposit refunds, state rollback, storage staking, and a value-transfer ledger. |
@@ -33,7 +33,7 @@ flowchart TD
 | Differential engine | `harness/src/differential.ts` | Differential testing engine: feeds identical fast-check attack sequences through both nearsim and a real nearcore sandbox, verifying agreement across all invariant verdicts (`agentfuzz diff`). |
 | World | `harness/src/world.ts` | One fixture per run: owner, three payees (one deletable), attacker + look-alikes, guard deployed with deploy+init+delete-deployer-key; agent keyring. |
 | Target registry + adapters | `harness/src/targets` | Which wasm to attack and how to call it. `agentfuzz-guard-v1` adapter for our guards; any third-party guard plugs in with its own adapter. Each target can declare `expectBroken` for the planted-bug matrix. |
-| Contract-layer generator | `harness/src/generators/contract.ts` | fast-check arbitraries over symbolic steps (`pay`, `burst`, `wait`, `probe`, `extra`, `drain`, `exploit`, `failPayee`, `owner`). |
+| Contract-layer generator | `harness/src/generators/contract.ts` | fast-check arbitraries over symbolic steps (`pay`, `burst`, `wait`, `probe`, `extra`, `drain`, `exploit`, `failPayee`, `failPay`, `owner`). Versioned (`GENERATOR_VERSIONS`): a released version's mix is frozen, and scorecards record the version so `verify` replays the same sequence stream. |
 | Attack steps | `harness/src/attacks/steps.ts` | Resolve symbolic steps against the world and execute them; record a trace (pay txs, probe outcomes, owner failures, allowance exhaustion, failed transfers). |
 | Invariant checkers | `harness/src/invariants` | INV-1..INV-6 exactly as in THREAT_MODEL.md. Passive checks read the ledger/keys; active end-of-run checks (INV-6 recovery, INV-4 revoke+withdraw) run last. |
 | Runner | `harness/src/runner.ts` | One fast-check search per invariant (same seed ⇒ same sequence stream), memoised so each distinct sequence executes once; counterexamples are shrunk and saved as `out/repro-*.json`; `replay` re-executes a repro. |

@@ -119,7 +119,7 @@ h4{margin:12px 0 8px}.bar-row{display:grid;grid-template-columns:200px 1fr 50px;
 <div class="meta">
   <div><b>Run ID</b><span class="mono">${esc(sc.runId)}</span></div>
   <div><b>Report SHA-256</b><span class="mono small">${esc(sc.sha256)}</span></div>
-  <div><b>Settings</b>seed ${s.seed} · ${s.runs} runs/invariant · ≤${s.maxSteps} steps · ${esc(s.backend)} · planner ${esc(s.planner)}</div>
+  <div><b>Settings</b>seed ${s.seed} · ${s.runs} runs/invariant · ≤${s.maxSteps} steps · ${esc(s.backend)} · planner ${esc(s.planner)} · generator v${s.generator ?? 1}</div>
   <div><b>Generated</b>${esc(sc.meta.generatedAt)} · commit <span class="mono">${esc(sc.meta.commit)}</span> · agentfuzz ${esc(sc.body.tool.version)}</div>
   <div><b>On-chain anchors</b><ul style="margin:4px 0 0 16px;padding:0">${anchors}</ul></div>
   <div><b>Reproduce</b><code>agentfuzz verify scorecard.json</code> re-runs everything and recomputes this hash</div>

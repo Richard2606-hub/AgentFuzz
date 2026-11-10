@@ -64,7 +64,7 @@ Every attack maps to the invariants it tries to break.
 | A3 Boundary amounts | Contract | cap, cap + 1, cap − 1, 0, 1 yocto, u64::MAX, u128::MAX, whole free balance | INV-1, INV-4 | `amountArb`, `pay` steps to allowlisted payees |
 | A4 Window rollover | Contract | Spend just before and after the window boundary; idle for several windows then split payments | INV-1 | `wait` steps (windows × length ± blocks) |
 | A5 Receiver look-alikes | Contract | `alice.near` vs `alice.near.attacker.near`, `xalice.near`, invalid case/homoglyph/space variants | INV-2 | `receiverArb` (look-alike, attacker, owner, self, invalid) |
-| A6 Callback ordering | Contract | Several pays in the same block; failing promises; state recorded before/after the transfer settles | INV-1, INV-5 | `burst`, `failPayee` steps |
+| A6 Callback ordering | Contract | Several pays in the same block; failing promises; state recorded before/after the transfer settles | INV-1, INV-5 | `burst`, `failPayee`, `failPay` (generator v2) steps |
 | A7 Key and allowance abuse | Account | Function-call key calling methods outside its scope; agent-callable methods that install keys; draining the gas allowance; using escalated keys | INV-3, INV-4, INV-6 | `probe`, `extra`, `exploit`, `drain` steps |
 
 Owner actions (`revoke`, `rekey`, `withdraw` of a fraction) are interleaved as control steps so the
@@ -86,6 +86,7 @@ controls (`guard-reference`, `guard-naive` with every bug off) to break nothing.
 | `bug-ignore-promise-result` | INV-5 | A6 |
 | `bug-withdraw-underflow` | INV-4 | A3 |
 | `bug-no-rekey` | INV-6 | A7 |
+| `bug-reset-on-failure` (opt-in) | INV-1, INV-5 | A6 + A3 |
 
 ## Out of scope (MVP) and known limits
 

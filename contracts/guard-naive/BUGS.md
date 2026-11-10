@@ -1,7 +1,9 @@
 # guard-naive: planted bugs
 
 `guard-naive` has the same interface as `guard-reference` (plus an agent-callable `rotate_key`)
-and **seven planted bugs**. Each bug is a cargo feature; the default build enables all of them.
+and **eight planted bugs**. Each bug is a cargo feature; the default build enables the first seven.
+B8 is opt-in: it was added after the default build's scorecard was anchored on testnet, and
+leaving it out keeps that wasm (and the published hash) byte-identical.
 They are realistic: every one is a pattern that shows up in hand-written spending guards.
 
 The planted-bug matrix (`make matrix`, and `harness/test/runner.test.ts`) builds every bug in
@@ -17,6 +19,7 @@ or if the controls (`guard-reference`, `guard_naive__fixed.wasm`) break anything
 | B5 | `bug-ignore-promise-result` | The callback never checks whether the transfer failed: a failed transfer stays counted (or is counted) as spend. Recorded spend drifts from reality and the agent's budget can be burnt by failing payees. | INV-5 | A6 failing promise | delete a payee; pay it |
 | B6 | `bug-withdraw-underflow` | `withdraw` keeps one window's cap "in reserve for the agent" using plain `balance - stake - cap`. The owner can never withdraw everything, and once the balance drops below `cap + stake` the subtraction panics (overflow checks are on) and the owner can't withdraw at all. | INV-4 | A3 boundary amounts / end-of-run owner check | (none needed) owner withdraws all free funds |
 | B7 | `bug-no-rekey` | There is no owner path to re-provision the agent key. Once the key's gas allowance is exhausted the agent is locked out for good: `G` has no full-access key, so nobody can add a new one. | INV-6 | A7 allowance drain | drain the allowance |
+| B8 | `bug-reset-on-failure` (opt-in) | When a transfer fails, the callback resets the window's recorded spend to 0 instead of releasing only the failed amount: a "rollback" that also rolls back every payment that succeeded. One failing payee re-opens the whole cap. | INV-1 (and INV-5) | A6 failing promise + A3 boundary amounts | pay 31% of cap; delete a payee, pay it; pay 70% of cap |
 
 ## Fixing them
 

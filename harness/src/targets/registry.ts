@@ -36,6 +36,8 @@ export const PLANTED_BUGS: { feature: string; breaks: InvariantId; attack: strin
   { feature: "bug-ignore-promise-result", breaks: "INV-5", attack: "A6", summary: "callback ignores transfer failure; recorded spend drifts from reality" },
   { feature: "bug-withdraw-underflow", breaks: "INV-4", attack: "A3", summary: "withdraw reserves one cap with unchecked subtraction; owner funds locked" },
   { feature: "bug-no-rekey", breaks: "INV-6", attack: "A7", summary: "no owner re-key path; allowance exhaustion locks the agent out for good" },
+  // Opt-in: not compiled into the default guard_naive.wasm (see contracts/guard-naive/Cargo.toml).
+  { feature: "bug-reset-on-failure", breaks: "INV-1", attack: "A6", summary: "a failed transfer resets the window spend to 0; one failure re-opens the full cap" },
 ];
 
 const builtins: TargetSpec[] = [

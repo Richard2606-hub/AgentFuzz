@@ -8,6 +8,7 @@ import { anchorLocal, anchorNearsim, anchorTestnet, readTestnetRecord, testnetCo
 import { loadCorpus, makePlanner, runPromptCampaign } from "./prompt-runner.js";
 import { renderScorecardHtml } from "./report/html.js";
 import { buildScorecard, hashBody, targetScore, type AnchorRecord, type Scorecard, type ScorecardSettings, type TargetScore } from "./report/scorecard.js";
+import { DEFAULT_GENERATOR, parseGenerator, type GeneratorVersion } from "./generators/contract.js";
 import { runCampaign } from "./runner.js";
 import { sha256Hex } from "./near/keys.js";
 import { loadTarget, REPO_ROOT } from "./targets/registry.js";
@@ -20,11 +21,23 @@ export interface ReportOptions {
   seed: number;
   runs: number;
   maxSteps: number;
+  generator?: GeneratorVersion;
   planner: string;
   anchor: AnchorMode;
   outDir: string;
   web: boolean;
   log?: (s: string) => void;
+}
+
+/** The generator a scorecard was produced with (absent = v1, from before versioning). */
+export function settingsGenerator(s: ScorecardSettings): GeneratorVersion {
+  return parseGenerator(s.generator ?? 1);
+}
+
+/** Build scorecard settings; v1 leaves `generator` out so its bodies (and hashes) match pre-versioning ones. */
+export function makeSettings(s: Omit<ScorecardSettings, "generator"> & { generator: GeneratorVersion }): ScorecardSettings {
+  const { generator, ...rest } = s;
+  return generator === 1 ? rest : { ...rest, generator };
 }
 
 export function corpusSha256(): string {
@@ -38,7 +51,7 @@ export async function computeTargets(settings: ScorecardSettings, log: (s: strin
   for (const name of settings.targets) {
     const target = loadTarget(name);
     log(`fuzzing ${name} (${settings.runs} runs/invariant)…`);
-    const campaign = await runCampaign({ target, seed: settings.seed, runs: settings.runs, maxSteps: settings.maxSteps });
+    const campaign = await runCampaign({ target, seed: settings.seed, runs: settings.runs, maxSteps: settings.maxSteps, generator: settingsGenerator(settings) });
     log(`prompt layer on ${name} (${scenarios.length} attacks, planner ${settings.planner})…`);
     const prompt = await runPromptCampaign({ target, planner: makePlanner(settings.planner), scenarios });
     out.push(targetScore(campaign, prompt));
@@ -49,7 +62,7 @@ export async function computeTargets(settings: ScorecardSettings, log: (s: strin
 export async function generateReport(opts: ReportOptions): Promise<{ scorecard: Scorecard; files: string[] }> {
   const log = opts.log ?? (() => {});
   const started = Date.now();
-  const settings: ScorecardSettings = {
+  const settings = makeSettings({
     seed: opts.seed,
     runs: opts.runs,
     maxSteps: opts.maxSteps,
@@ -57,7 +70,8 @@ export async function generateReport(opts: ReportOptions): Promise<{ scorecard: 
     planner: opts.planner,
     targets: opts.targets,
     corpusSha256: corpusSha256(),
-  };
+    generator: opts.generator ?? DEFAULT_GENERATOR,
+  });
   const targets = await computeTargets(settings, log);
   const sc = buildScorecard(settings, targets, Date.now() - started);
   sc.anchors.push(...(await anchor(sc, opts.anchor, opts.outDir, log)));
