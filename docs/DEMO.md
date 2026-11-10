@@ -21,7 +21,7 @@ Tips: `NO_COLOR=1` for plain logs; `--runs 100` makes every command finish in ab
 > Built at NEAR HACKATHON: AgentFuzz, a red-team harness for AI agent wallets. It fuzzes guard
 > contracts + prompt-injects the agent, then scores which safety invariants hold. 7/7 planted bugs
 > found, minimised to replayable repros. Results hashed on NEAR testnet. Try it on your guard:
-> [repo link] @NEARProtocol #NEARHackathon
+> https://github.com/Richard2606-hub/AgentFuzz @NEARProtocol #NEARHackathon
 
 Attach the video. Post **before** submitting: the form needs the post's link, and submissions
 can't be edited afterwards.

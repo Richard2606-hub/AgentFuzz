@@ -23,7 +23,7 @@ jobs:
           cargo build --target wasm32-unknown-unknown --release
 
       - name: Run AgentFuzz Security Audit
-        uses: agentfuzz/agentfuzz/.github/actions/agentfuzz@main
+        uses: Richard2606-hub/AgentFuzz/.github/actions/agentfuzz@main
         with:
           target: target/wasm32-unknown-unknown/release/guard.wasm
           runs: 200
