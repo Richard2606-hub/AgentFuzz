@@ -40,6 +40,10 @@ describe("scorecard", () => {
     const html = renderScorecardHtml(sc);
     expect(html).toContain(sc.sha256);
     expect(html).toContain("INV-6");
+    for (const tab of ["fuzz", "prompt", "check", "scan", "scorecard", "cli"]) {
+      expect(html).toContain(`data-tab="${tab}"`);
+      expect(html).toContain(`id="tab-${tab}"`);
+    }
     expect(html).not.toMatch(/https?:\/\/[^"]*\.js/);
   });
 

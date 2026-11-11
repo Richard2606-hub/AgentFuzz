@@ -4,6 +4,8 @@
  * results of its own.
  */
 import { checkGuard, type CheckResult } from "../anchor/audit-lookup.js";
+import { scanAccount, type Network, type ScanResult, type Severity } from "../account/scan.js";
+import { fmtNear } from "../near/keys.js";
 import type { FromWorker, FuzzSummary, InvariantView, PromptView, ReproView, ScenarioInfo, TargetInfo, ToWorker } from "./protocol.js";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -349,6 +351,64 @@ document.querySelectorAll<HTMLButtonElement>(".ck-example").forEach((b) =>
   b.addEventListener("click", () => {
     $<HTMLInputElement>("ck-input").value = b.dataset.account ?? "";
     void runCheck();
+  }),
+);
+
+// ---------------------------------------------------------------- account safety tab (reads mainnet or testnet)
+
+const SEVERITY_BADGE: Record<Severity, [string, string]> = { danger: ["bad", "danger"], warn: ["warn", "review"], info: ["info", "info"], ok: ["ok", "ok"] };
+const SCAN_VERDICT: Record<ScanResult["verdict"], [string, string, string]> = {
+  danger: ["bad", "danger", "Act on the red items before you send money to this account or trust it with a budget."],
+  warn: ["warn", "review", "Nothing alarming, but review the yellow items."],
+  ok: ["ok", "nothing risky found", "No known risk pattern on this account."],
+};
+const nearAmount = (yocto: string) => fmtNear(BigInt(yocto));
+
+async function runScan() {
+  const input = $<HTMLInputElement>("sc-input").value.trim();
+  if (!input) return void ($("sc-status").textContent = "Enter a NEAR account id, e.g. you.near or you.testnet.");
+  const network = ($<HTMLSelectElement>("sc-network").value || undefined) as Network | undefined;
+  $("sc-status").textContent = "reading the chain…";
+  $("sc-result").innerHTML = "";
+  $<HTMLButtonElement>("sc-run").disabled = true;
+  try {
+    const r = await scanAccount(input, { network });
+    const [cls, label, text] = r.exists ? SCAN_VERDICT[r.verdict] : ["warn", "not found", `This account does not exist on ${r.network}.`];
+    const b = r.balance;
+    $("sc-result").innerHTML = `<div class="repro">
+      <h4>${esc(r.accountId)} <span class="muted small">${esc(r.network)}</span> ${badge(cls, label)}</h4>
+      ${b ? `<div class="small">balance <b>${esc(nearAmount(b.total))}</b>${BigInt(b.staked) ? ` · staked ${esc(nearAmount(b.staked))}` : ""} · storage ${b.storageBytes.toLocaleString()} bytes${r.codeHash ? ` · contract <span class="mono">${esc(r.codeHash.slice(0, 16))}…</span>` : ""}</div>` : ""}
+      <p>${esc(text)}</p>
+      ${r.findings
+        .map((f) => `<div class="finding ${f.severity}"><b>${badge(...SEVERITY_BADGE[f.severity])} ${esc(f.title)}</b><span class="small">${esc(f.detail)}</span></div>`)
+        .join("")}
+      ${
+        r.keys.length
+          ? `<h4 style="margin-top:14px">Access keys (${r.keys.length})</h4>
+             <table class="compact keys"><thead><tr><th></th><th>Kind</th><th>Public key</th><th>What it can do</th></tr></thead><tbody>${r.keys
+               .map((k) => `<tr><td>${badge(...SEVERITY_BADGE[k.severity])}</td><td>${esc(k.kind)}</td><td class="mono">${esc(k.publicKey)}</td><td>${esc(k.note)}</td></tr>`)
+               .join("")}</tbody></table>`
+          : ""
+      }
+    </div>`;
+    $("sc-status").textContent = `read from ${r.network} just now`;
+  } catch (e) {
+    $("sc-status").textContent = `Error: ${e instanceof Error ? e.message : String(e)}`;
+  } finally {
+    $<HTMLButtonElement>("sc-run").disabled = false;
+  }
+}
+
+$<HTMLButtonElement>("sc-run").disabled = false;
+$("sc-run").addEventListener("click", runScan);
+$("sc-input").addEventListener("keydown", (e) => {
+  if ((e as KeyboardEvent).key === "Enter") void runScan();
+});
+document.querySelectorAll<HTMLButtonElement>(".sc-example").forEach((b) =>
+  b.addEventListener("click", () => {
+    $<HTMLInputElement>("sc-input").value = b.dataset.account ?? "";
+    $<HTMLSelectElement>("sc-network").value = "";
+    void runScan();
   }),
 );
 

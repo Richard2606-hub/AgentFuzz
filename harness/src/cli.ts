@@ -18,7 +18,7 @@ import { loadDotEnv } from "./util/dotenv.js";
 import { c, statusBadge } from "./util/term.js";
 import { runMatrix } from "./matrix.js";
 import { loadCorpus, makePlanner, runPromptCampaign, type PromptCampaign, type PromptResult } from "./prompt-runner.js";
-import { cmdAnchor, cmdCheck, cmdDemoGuardsDeploy, cmdDemoOffline, cmdRenderWeb, cmdReport, cmdScoreboardDeploy, cmdVerify } from "./cli-report.js";
+import { cmdAnchor, cmdCheck, cmdDemoGuardsDeploy, cmdDemoOffline, cmdRenderWeb, cmdReport, cmdScan, cmdScoreboardDeploy, cmdVerify } from "./cli-report.js";
 import { sandboxBackendFactory, differential } from "./differential.js";
 import { openaiChatClient } from "./agent/openai-client.js";
 import { llmConfigFromEnv, pickModel } from "./agent/planners.js";
@@ -279,6 +279,8 @@ function help() {
   agentfuzz verify [scorecard.json]         recompute body hash, re-run deterministically, check on-chain anchor
   agentfuzz check <account | code-hash | guard.wasm>  is this guard build audited on the testnet scoreboard?
                                             exit 0 clean, 2 broken, 3 not audited, 4 no contract, 5 incomplete [--trust a.testnet] [--json]
+  agentfuzz scan <account>                  safety scan of any NEAR account (mainnet or testnet): risky keys, look-alike
+                                            names, audited contract. exit 0 ok, 2 danger, 3 review, 4 missing [--network] [--json]
   agentfuzz render-web [scorecard.json]     rebuild web/index.html from a scorecard (no re-run, no anchoring)
   agentfuzz anchor [scorecard.json]         anchor an existing scorecard  [--network nearsim|testnet]
   agentfuzz scoreboard-deploy               deploy or upgrade artifacts/scoreboard.wasm on testnet (needs .env credentials)
@@ -318,6 +320,8 @@ async function main() {
       return cmdRenderWeb(positional, flags);
     case "check":
       return cmdCheck(positional, flags);
+    case "scan":
+      return cmdScan(positional, flags);
     case "anchor":
       return cmdAnchor(positional, flags, outDir(flags));
     case "demo-guards-deploy":

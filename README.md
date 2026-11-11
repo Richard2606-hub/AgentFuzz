@@ -47,7 +47,7 @@ Every claim in this README is a command. Expected output is abbreviated.
 | Do | See |
 |----|-----|
 | `make demo-offline` | The whole demo in ~10 s: naive guard **6/6 invariants BROKEN** with minimised repros, reference guard **6/6 invariants held**, prompt layer **28/28 blocked** on reference vs **9 breaches** on naive, scorecard written to `out/scorecard.html` (`web/` is left alone unless you pass `--web`), hash anchored through `scoreboard.wasm` |
-| `make web && make serve-web`, open http://localhost:8080 | The playground, running the same engine in your browser (a Web Worker, no server). **Fuzz a guard** on `naive`, seed 42, 200 runs: **6/6 broken**, 154 attack sequences, 832 steps, each break with its minimised repro, a download of the repro file (byte-identical to the CLI's) and the `agentfuzz replay` command; `reference`: **6/6 held**; uploading `artifacts/guard_naive__bug-window-lag.wasm`: **INV-1 broken**. **Prompt injection**: the 28 corpus scenarios executed for real: 19 blocked / 9 breaches on `naive`, 28 blocked on `reference`. **Check a wallet**: `guard-naive` → audited, 6/6 broken; `guard-reference` → audited, 6/6 held (read live from testnet) |
+| `make web && make serve-web`, open http://localhost:8080 | The playground, running the same engine in your browser (a Web Worker, no server). **Fuzz a guard** on `naive`, seed 42, 200 runs: **6/6 broken**, 154 attack sequences, 832 steps, each break with its minimised repro, a download of the repro file (byte-identical to the CLI's) and the `agentfuzz replay` command; `reference`: **6/6 held**; uploading `artifacts/guard_naive__bug-window-lag.wasm`: **INV-1 broken**. **Prompt injection**: the 28 corpus scenarios executed for real: 19 blocked / 9 breaches on `naive`, 28 blocked on `reference`. **Check a wallet**: `guard-naive` → audited, 6/6 broken; `guard-reference` → audited, 6/6 held (read live from testnet). **Account safety**: `wrap-near.near` (a real mainnet account) → danger, looks like `wrap.near`; `guard-naive…` → danger (audited build broken, agent key can call `rotate_key`); `guard-reference…` → nothing risky |
 | `make fuzz TARGET=naive` | `INV-1 BROKEN … minimised repro (1 step, classes A6): same-block burst of 2 pays …` and one `repro saved: out/repro-naive-INV-*.json` per broken invariant |
 | `make fuzz TARGET=reference` | `INV-1 HELD … INV-6 HELD`, `all invariants held · ~190 attack sequences`, INV-5 exercised in ~50 runs |
 | `make fuzz TARGET=naive:bug-window-lag` | `INV-1 BROKEN` with a repro like `wait 2 window(s) …; same-block burst of 2 pays: remaining budget, remaining budget` (window-rollover bug: after an idle period the cap stops applying) |
@@ -59,7 +59,8 @@ Every claim in this README is a command. Expected output is abbreviated.
 | `make report` | `out/scorecard.json`, `out/scorecard.html`, `web/index.html`; run id `af-42-…`; anchors: testnet if `.env` is set, otherwise nearsim + `out/anchors.local.json` |
 | `make verify` | `✓ body hash matches … ✓ deterministic re-run reproduced the identical hash … verified` |
 | `cd harness && node bin/agentfuzz.mjs diff --target reference --runs 20` | Differential test: runs identical sequences on nearsim and real nearcore sandbox, confirming 20/20 agree |
-| `make test` | 38 contract unit tests (if Rust is installed) and 82 harness tests, including the planted-bug matrix, a check that the published scorecard still reproduces, and a check that the browser bundle gives the CLI's exact results |
+| `cd harness && node bin/agentfuzz.mjs scan wrap-near.near` | Reads the mainnet account and flags it: `✗ Looks like wrap.near (Wrapped NEAR (wNEAR)), but is a different account`, exit code 2. Try your own account: risky keys are `!` (exit 3), nothing risky exits 0 |
+| `make test` | 38 contract unit tests (if Rust is installed) and 98 harness tests, including the planted-bug matrix, a check that the published scorecard still reproduces, and a check that the browser bundle gives the CLI's exact results |
 | `make sandbox-test` (Linux/macOS) | The same wasm on a real nearcore sandbox via near-workspaces: INV-3/INV-4 hold on the reference guard; the naive key escalation and look-alike payment reproduce on nearcore |
 
 ## What it checks
@@ -138,6 +139,8 @@ engine client-side: no server, no scripted results.
 
 * **Check a wallet**: enter any testnet account; the page reads its code hash and the
   scoreboard's audits of that build straight from a NEAR RPC (see below).
+* **Account safety**: a safety scan of any mainnet or testnet account, for every NEAR user (see
+  [Account safety](#account-safety-for-every-near-user)). Deep link: `…/#scan`.
 
 Build it with `make web` (esbuild bundles, wasm, corpus and `index.html` into `web/`; the
 generated files are not committed) and open it with `make serve-web`, since browsers block Web
@@ -174,6 +177,30 @@ supplier agent's quote demanding an "escrow" prepayment, a counterparty agent's 
 settlement account, an agent asking to be allowlisted, a marketplace agent asking for the signing
 key, a refund to a look-alike, unit confusion in a partner agent's price API, an inflated delivery
 count, and a poisoned agent-registry payout address.
+
+## Account safety: for every NEAR user
+
+Most NEAR users will never deploy a guard, but every one of them has access keys and sends money
+to account names. `agentfuzz scan <account>` (or the **Account safety** tab) reads any mainnet or
+testnet account (`.testnet` names go to testnet, everything else to mainnet) and reports, in plain
+words:
+
+| Area | What it flags |
+|------|---------------|
+| **Keys**: who can move the money | Several full-access keys (each one alone can take everything); a contract account that still has a full-access key (the contract's limits don't bind it); no full-access key and no contract (funds locked); an agent key for the account's own contract that can call admin methods like `rotate_key`, or any method at all (invariant INV-3, key scope); app keys with an unlimited or large gas allowance; app keys signed in to a look-alike of a well-known app; many old app sign-ins |
+| **Contract**: what code runs on it | Plain account vs contract; for a contract, the AgentFuzz audit of that exact build (the code hash is the same on every network, so mainnet accounts are looked up on the testnet scoreboard too) |
+| **Name**: is it who it looks like | Look-alikes of well-known accounts (`wrap-near.near`, `v2.ref-flnance.near`: characters that read alike, dots swapped for dashes, one or two edits); names that embed another account as a prefix (`alice.near.attacker.near` belongs to `attacker.near`); implicit and Ethereum-style addresses; accounts that don't exist on the network |
+
+Exit codes: 0 nothing risky, 2 danger, 3 review, 4 account does not exist; `--json` for tools.
+It is read-only (three RPC view calls, nothing to sign, no wallet to connect) and runs the same in
+the browser. It can't know whether a full-access key is *yours*, or what an app does with the key
+you gave it; a clean scan means no known risk pattern, not a guarantee.
+
+| Account | `agentfuzz scan` |
+|---------|------------------|
+| `wrap-near.near` (mainnet) | ✗ looks like `wrap.near`, but is a different account (exit 2) |
+| `guard-naive.agentfuzz-28213.testnet` | ✗ audited build: 6/6 invariants broken; ! agent key can call `rotate_key` (exit 2) |
+| `guard-reference.agentfuzz-28213.testnet` | ✓ locked account, agent key scoped to `pay`, audited build held 6/6 (exit 0) |
 
 ## NEAR primitives used
 
@@ -278,7 +305,8 @@ harness/src/attacks/         attack steps A3-A7
 harness/src/agent/           reference agent + planners (compromised / cassette / NEAR AI Cloud)
 harness/src/runner.ts        deploy -> attack -> check -> minimise -> report
 harness/src/report/          scorecard JSON + HTML
-harness/src/anchor/          scoreboard anchoring (nearsim / testnet / local)
+harness/src/anchor/          scoreboard anchoring (nearsim / testnet / local) + audit lookup
+harness/src/account/         account safety scan: keys, look-alike names, audited contract
 corpus/prompt/               committed prompt-layer attacks
 tests/sandbox/               near-workspaces integration tests (real nearcore)
 targets/third-party/         adapters + policy for third-party guards
@@ -295,6 +323,8 @@ web/                         static site: scorecard + playground (built by make 
 * Prompt-layer results with a live model depend on the model; the committed corpus is a snapshot.
 * Guards are checked on native NEAR transfers; NEP-141 token payments are not modelled yet.
 * A8 (social engineering of a human approval step) is not implemented.
+* The account scan's look-alike check compares against a short built-in list of well-known
+  accounts; a look-alike of an account not on that list is caught only by the prefix rule.
 * The browser playground drives uploaded guards through the `agentfuzz-guard-v1` interface only;
   guards with their own adapter (third-party targets) run from the CLI. Under that interface the
   agent key may call only `pay`, so uploading one of the naive builds (whose agent key can also

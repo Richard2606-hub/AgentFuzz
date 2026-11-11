@@ -1,5 +1,5 @@
 /**
- * Report-related CLI commands: report, verify, check, render-web, anchor, scoreboard-deploy, demo-offline.
+ * Report-related CLI commands: report, verify, check, scan, render-web, anchor, scoreboard-deploy, demo-offline.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -12,7 +12,8 @@ import { runCampaign } from "./runner.js";
 import { loadTarget, REPO_ROOT } from "./targets/registry.js";
 import { renderScorecardHtml } from "./report/html.js";
 import { checkGuard, PUBLISHED_SCOREBOARD, TESTNET_RPC, type CheckResult } from "./anchor/audit-lookup.js";
-import { sha256Hex } from "./near/keys.js";
+import { fmtNear, sha256Hex } from "./near/keys.js";
+import { scanAccount, scanExitCode, type Network, type Severity } from "./account/scan.js";
 import { c } from "./util/term.js";
 
 type Flags = Record<string, string | boolean>;
@@ -99,6 +100,45 @@ export async function cmdCheck(positional: string[], flags: Flags): Promise<numb
   console.log(`  verdict: ${verdict}`);
   console.log(c.dim("  Audits are claims by their submitter; each names a report you can re-run with agentfuzz verify."));
   return CHECK_EXIT[r.verdict];
+}
+
+const SEV: Record<Severity, (s: string) => string> = {
+  danger: (s) => c.red(`  ✗ ${s}`),
+  warn: (s) => c.yellow(`  ! ${s}`),
+  info: (s) => c.cyan(`  i ${s}`),
+  ok: (s) => c.green(`  ✓ ${s}`),
+};
+
+/**
+ * agentfuzz scan <account> [--network mainnet|testnet] [--json]
+ * Safety scan of any NEAR account: its keys, its contract (and AgentFuzz audit), and whether its
+ * name imitates a well-known account. Read-only; signs nothing.
+ */
+export async function cmdScan(positional: string[], flags: Flags): Promise<number> {
+  const id = positional[0];
+  if (!id) throw new Error("usage: agentfuzz scan <account-id> [--network mainnet|testnet] [--rpc url] [--json]");
+  const network = typeof flags.network === "string" ? (flags.network as Network) : undefined;
+  if (network && network !== "mainnet" && network !== "testnet") throw new Error("--network must be mainnet or testnet");
+  const r = await scanAccount(id, { network, rpcUrl: typeof flags.rpc === "string" ? flags.rpc : undefined });
+  if (flags.json) {
+    process.stdout.write(JSON.stringify(r, null, 2) + "\n");
+    return scanExitCode(r);
+  }
+  console.log(`${c.bold("AgentFuzz scan")} ${c.dim("·")} ${r.accountId} ${c.dim(`· ${r.network}`)}`);
+  if (r.balance)
+    console.log(c.dim(`  balance ${fmtNear(BigInt(r.balance.total))}${BigInt(r.balance.staked) ? ` · staked ${fmtNear(BigInt(r.balance.staked))}` : ""} · storage ${r.balance.storageBytes} bytes${r.codeHash ? ` · contract ${r.codeHash.slice(0, 16)}…` : ""}`));
+  console.log("");
+  for (const f of r.findings) {
+    console.log(SEV[f.severity](f.title));
+    console.log(c.dim(`      ${f.detail}`));
+  }
+  if (r.keys.length) {
+    console.log(`\n  ${c.bold(`Access keys (${r.keys.length})`)}`);
+    for (const k of r.keys) console.log(`${SEV[k.severity](`${k.kind.padEnd(13)} ${k.publicKey.slice(0, 20)}…`)} ${c.dim(k.note)}`);
+  }
+  const verdict = { danger: c.red("danger: act on the ✗ items before trusting this account"), warn: c.yellow("review the ! items"), ok: c.green("nothing risky found") }[r.verdict];
+  console.log(`\n  verdict: ${r.exists ? verdict : c.yellow(`account does not exist on ${r.network}`)}`);
+  return scanExitCode(r);
 }
 
 /** Rebuild web/index.html from a scorecard without re-running or re-anchoring it (used by `make web`). */

@@ -49,7 +49,8 @@ export interface AuditInput {
   prompt_breaches: number;
 }
 
-async function rpc(url: string, method: string, params: unknown): Promise<any> {
+/** One NEAR JSON-RPC call over fetch (works in Node 18+ and browsers; NEAR RPCs allow CORS). */
+export async function rpc(url: string, method: string, params: unknown): Promise<any> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },

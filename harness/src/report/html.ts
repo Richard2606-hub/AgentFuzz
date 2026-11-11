@@ -138,6 +138,8 @@ select:focus,input:focus,textarea:focus{border-color:var(--accent)}input[type=fi
 .grid2>div{min-width:0}.scenario code,.repro code{white-space:pre-wrap;word-break:break-word}
 .notice{background:#3d3117;color:var(--warn);border-radius:10px;padding:12px 16px;margin:0 0 16px}
 .summary-line{font-size:15px;margin:8px 0}
+.finding{border-left:4px solid var(--line);background:#090d14;border-radius:8px;padding:9px 12px;margin:8px 0}.finding b{display:block;margin-bottom:2px}.finding.danger{border-left-color:var(--bad);background:#1a0f12}.finding.warn{border-left-color:var(--warn)}.finding.info{border-left-color:var(--info)}.finding.ok{border-left-color:var(--ok)}
+.keys td{font-size:13px}.keys td.mono{word-break:break-all}
 `;
 
 export function renderScorecardHtml(sc: Scorecard): string {
@@ -173,6 +175,7 @@ export function renderScorecardHtml(sc: Scorecard): string {
   <button class="tab-btn active" data-tab="fuzz">Fuzz a guard</button>
   <button class="tab-btn" data-tab="prompt">Prompt injection</button>
   <button class="tab-btn" data-tab="check">Check a wallet</button>
+  <button class="tab-btn" data-tab="scan">Account safety</button>
   <button class="tab-btn" data-tab="scorecard">Published scorecard</button>
   <button class="tab-btn" data-tab="cli">Run it yourself</button>
 </div>
@@ -267,6 +270,32 @@ node bin/agentfuzz.mjs check ${esc(examples[0] ?? "guard.your-account.testnet")}
   </section>
 </div>
 
+<!-- TAB: SCAN -->
+<div id="tab-scan" class="tab-content">
+  <section class="card" id="sc">
+    <div class="card-head"><div>
+      <h3>Is this NEAR account safe?</h3>
+      <p class="muted small">For any NEAR account, yours or one you are about to pay: who can move its money (its access keys and what each may do), what code runs on it and whether AgentFuzz audited that exact build, and whether its name imitates a well-known account. Read straight from a public NEAR RPC in your browser; nothing to sign or connect, no wallet needed.</p>
+    </div></div>
+    <div class="controls">
+      <div class="field-box wide"><label for="sc-input">Account id</label><input type="text" id="sc-input" placeholder="you.near" spellcheck="false" autocapitalize="off"></div>
+      <div class="field-box"><label for="sc-network">Network</label><select id="sc-network"><option value="">auto (.testnet = testnet)</option><option value="mainnet">mainnet</option><option value="testnet">testnet</option></select></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="sc-run" disabled>Scan account</button>
+      <button class="btn secondary sc-example" data-account="wrap-near.near" title="a real mainnet account named like wrap.near">look-alike</button>
+      <button class="btn secondary sc-example" data-account="alice.near.attacker.near" title="a name that starts like alice.near">fake prefix</button>
+      ${examples.map((e) => `<button class="btn secondary sc-example" data-account="${esc(e)}">${esc(e.split(".")[0])}</button>`).join("\n      ")}
+      <span class="muted small" id="sc-status"></span>
+    </div>
+    <div id="sc-result"></div>
+    <h4>From the command line</h4>
+    <pre><code># exit code: 0 nothing risky · 2 danger · 3 review · 4 account does not exist
+node bin/agentfuzz.mjs scan you.near</code></pre>
+    <p class="muted small">What it can't see: whether a full-access key is <em>yours</em> (only you know), or what an app does with the key you gave it. A clean scan means no known risk pattern was found, not that an account is trustworthy.</p>
+  </section>
+</div>
+
 <!-- TAB: SCORECARD -->
 <div id="tab-scorecard" class="tab-content">
   <div class="meta">
@@ -314,7 +343,8 @@ node bin/agentfuzz.mjs check ${esc(examples[0] ?? "guard.your-account.testnet")}
 </main>
 <script>
 function afTab(name){document.querySelectorAll(".tab-btn").forEach(function(x){x.classList.toggle("active",x.dataset.tab===name)});document.querySelectorAll(".tab-content").forEach(function(x){x.classList.toggle("active",x.id==="tab-"+name)})}
-document.querySelectorAll(".tab-btn").forEach(function(b){b.addEventListener("click",function(){afTab(b.dataset.tab)})});
+document.querySelectorAll(".tab-btn").forEach(function(b){b.addEventListener("click",function(){afTab(b.dataset.tab);history.replaceState(null,"","#"+b.dataset.tab)})});
+function afHash(){var t=location.hash.slice(1);if(t&&document.getElementById("tab-"+t))afTab(t)}afHash();window.addEventListener("hashchange",afHash);
 </script>
 <script src="playground.js" onerror="afTab('scorecard')"></script>
 </body></html>
