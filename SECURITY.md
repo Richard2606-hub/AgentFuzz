@@ -2,10 +2,10 @@
 
 ## Reporting a vulnerability
 
-Please report security problems privately through GitHub's
-[private vulnerability reporting](https://github.com/Richard2606-hub/AgentFuzz/security/advisories/new)
-for this repository, not in a public issue (if that page is not available, open an issue that only
-asks for a private contact, without details). Include what you found, how to reproduce it, and what
+Please report security problems privately, not in a public issue: open the repository's
+[Security tab](https://github.com/Richard2606-hub/AgentFuzz/security) and click
+**Report a vulnerability** (GitHub's private vulnerability reporting; you need to be signed in to
+GitHub). Only the maintainers see the report. Include what you found, how to reproduce it, and what
 an attacker could do with it. We aim to acknowledge reports within 3 days. AgentFuzz is a
 hackathon project maintained on a best-effort basis; there is no bug bounty.
 

@@ -60,4 +60,4 @@ telemetry.
 ## Contact
 
 Questions or concerns: open an issue at https://github.com/Richard2606-hub/AgentFuzz/issues, or
-for anything sensitive use the private channel in [SECURITY.md](SECURITY.md).
+for anything sensitive report it privately on the [Security tab](https://github.com/Richard2606-hub/AgentFuzz/security) (Report a vulnerability; see [SECURITY.md](SECURITY.md)).

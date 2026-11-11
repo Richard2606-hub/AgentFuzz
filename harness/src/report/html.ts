@@ -165,7 +165,7 @@ function privacySection(): string {
   <table class="compact"><thead><tr><th>Host</th><th>Used by</th><th>What it receives</th></tr></thead><tbody>${SITE_CONNECTIONS.map(
     (c) => `<tr><td><span class="mono">${esc(new URL(c.origin).host)}</span><div class="small muted">${esc(c.operator)}</div></td><td class="small">${esc(c.usedBy)}</td><td class="small">${esc(c.sends)}</td></tr>`,
   ).join("")}</tbody></table>
-  <p class="small muted">Every request also reveals your IP address to that host, under its own privacy policy. A NEAR AI key you type stays in this tab's memory only and is sent only to NEAR AI; use a separate key with a low limit, and revoke it afterwards. Account ids are public on-chain data. Details: <a href="${REPO_URL}/blob/main/PRIVACY.md" target="_blank" rel="noopener">PRIVACY.md</a> · security reports: <a href="${REPO_URL}/blob/main/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a>.</p>
+  <p class="small muted">Every request also reveals your IP address to that host, under its own privacy policy. A NEAR AI key you type stays in this tab's memory only and is sent only to NEAR AI; use a separate key with a low limit, and revoke it afterwards. Account ids are public on-chain data. Details: <a href="${REPO_URL}/blob/main/PRIVACY.md" target="_blank" rel="noopener">PRIVACY.md</a> · <a href="${REPO_URL}/blob/main/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a> · found a security problem? Report it privately on the <a href="${REPO_URL}/security" target="_blank" rel="noopener">Security tab</a> (Report a vulnerability).</p>
 </section>`;
 }
 
