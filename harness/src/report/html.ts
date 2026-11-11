@@ -7,6 +7,7 @@
  */
 import { demoGuardAccounts, PUBLISHED_SCOREBOARD, TESTNET_RPC } from "../anchor/audit-lookup.js";
 import type { Scorecard, TargetScore } from "./scorecard.js";
+import { contentSecurityPolicy, SITE_CONNECTIONS } from "./site-policy.js";
 
 const esc = (s: unknown) =>
   String(s ?? "")
@@ -144,6 +145,30 @@ select:focus,input:focus,textarea:focus{border-color:var(--accent)}input[type=fi
 .sim-log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--muted);white-space:pre-wrap;word-break:break-word}
 `;
 
+/**
+ * Tab switching, deep links (#scan, #simulate…) and the fallback to the scorecard when the
+ * playground bundle is missing. The only inline script: the CSP allows it by its hash, and no
+ * inline event handlers are used.
+ */
+export const TAB_SCRIPT =
+  'function afTab(name){document.querySelectorAll(".tab-btn").forEach(function(x){x.classList.toggle("active",x.dataset.tab===name)});document.querySelectorAll(".tab-content").forEach(function(x){x.classList.toggle("active",x.id==="tab-"+name)})}' +
+  'document.querySelectorAll(".tab-btn").forEach(function(b){b.addEventListener("click",function(){afTab(b.dataset.tab);history.replaceState(null,"","#"+b.dataset.tab)})});' +
+  'function afHash(){var t=location.hash.slice(1);if(t&&document.getElementById("tab-"+t))afTab(t)}' +
+  'if(window.AF_PLAYGROUND){afHash();window.addEventListener("hashchange",afHash)}else afTab("scorecard");';
+
+const REPO_URL = "https://github.com/Richard2606-hub/AgentFuzz";
+
+function privacySection(): string {
+  return `<section class="card" id="privacy">
+  <h3>Privacy &amp; security</h3>
+  <p class="small">This page is static files on GitHub Pages. It sets <b>no cookies</b>, uses <b>no browser storage</b>, and loads <b>no analytics or third-party scripts</b>. On load it contacts only this site. When you press a button, it may contact the hosts below and nothing else: a Content-Security-Policy makes your browser block every other destination, for the page and for its Web Worker. Tools that read the chain never ask for keys and never sign or send anything.</p>
+  <table class="compact"><thead><tr><th>Host</th><th>Used by</th><th>What it receives</th></tr></thead><tbody>${SITE_CONNECTIONS.map(
+    (c) => `<tr><td><span class="mono">${esc(new URL(c.origin).host)}</span><div class="small muted">${esc(c.operator)}</div></td><td class="small">${esc(c.usedBy)}</td><td class="small">${esc(c.sends)}</td></tr>`,
+  ).join("")}</tbody></table>
+  <p class="small muted">Every request also reveals your IP address to that host, under its own privacy policy. A NEAR AI key you type stays in this tab's memory only and is sent only to NEAR AI; use a separate key with a low limit, and revoke it afterwards. Account ids are public on-chain data. Details: <a href="${REPO_URL}/blob/main/PRIVACY.md" target="_blank" rel="noopener">PRIVACY.md</a> · security reports: <a href="${REPO_URL}/blob/main/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a>.</p>
+</section>`;
+}
+
 export function renderScorecardHtml(sc: Scorecard): string {
   const s = sc.body.settings;
   const anchors = sc.anchors.length
@@ -166,6 +191,8 @@ export function renderScorecardHtml(sc: Scorecard): string {
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="${esc(contentSecurityPolicy([TAB_SCRIPT]))}">
+<meta name="referrer" content="no-referrer">
 <title>AgentFuzz · Red-team harness and playground for NEAR agent-wallet guards</title>
 <style>${CSS}</style></head><body><main>
 <header>
@@ -388,13 +415,10 @@ node bin/agentfuzz.mjs scan you.near</code></pre>
   </section>
 </div>
 
+${privacySection()}
 </main>
-<script>
-function afTab(name){document.querySelectorAll(".tab-btn").forEach(function(x){x.classList.toggle("active",x.dataset.tab===name)});document.querySelectorAll(".tab-content").forEach(function(x){x.classList.toggle("active",x.id==="tab-"+name)})}
-document.querySelectorAll(".tab-btn").forEach(function(b){b.addEventListener("click",function(){afTab(b.dataset.tab);history.replaceState(null,"","#"+b.dataset.tab)})});
-function afHash(){var t=location.hash.slice(1);if(t&&document.getElementById("tab-"+t))afTab(t)}afHash();window.addEventListener("hashchange",afHash);
-</script>
-<script src="playground.js" onerror="afTab('scorecard')"></script>
+<script src="playground.js"></script>
+<script>${TAB_SCRIPT}</script>
 </body></html>
 `;
 }

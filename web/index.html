@@ -1,5 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-S+JSdCKwn2stBqI6Z19tZbakpeRAOwEjdS0fAYBvfhM=' 'wasm-unsafe-eval'; worker-src blob:; connect-src 'self' https://test.rpc.fastnear.com https://rpc.mainnet.fastnear.com https://rpc.intea.rs https://cloud-api.near.ai; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; object-src 'none'; upgrade-insecure-requests">
+<meta name="referrer" content="no-referrer">
 <title>AgentFuzz · Red-team harness and playground for NEAR agent-wallet guards</title>
 <style>
 :root{--bg:#0b0e14;--panel:#121722;--panel-alt:#181f2e;--line:#232a38;--text:#e6e9ef;--muted:#8a93a6;--ok:#2ecc71;--bad:#ff5c5c;--warn:#f5b041;--info:#5dade2;--accent:#7aa2f7;--accent-glow:rgba(122,162,247,0.18)}
@@ -372,11 +374,13 @@ node bin/agentfuzz.mjs scan you.near</code></pre>
   </section>
 </div>
 
+<section class="card" id="privacy">
+  <h3>Privacy &amp; security</h3>
+  <p class="small">This page is static files on GitHub Pages. It sets <b>no cookies</b>, uses <b>no browser storage</b>, and loads <b>no analytics or third-party scripts</b>. On load it contacts only this site. When you press a button, it may contact the hosts below and nothing else: a Content-Security-Policy makes your browser block every other destination, for the page and for its Web Worker. Tools that read the chain never ask for keys and never sign or send anything.</p>
+  <table class="compact"><thead><tr><th>Host</th><th>Used by</th><th>What it receives</th></tr></thead><tbody><tr><td><span class="mono">test.rpc.fastnear.com</span><div class="small muted">FastNEAR (NEAR testnet RPC)</div></td><td class="small">Check a wallet, Account safety and Simulate on testnet</td><td class="small">the testnet account ids you enter; read-only queries (accounts, keys, contract code and state)</td></tr><tr><td><span class="mono">rpc.mainnet.fastnear.com</span><div class="small muted">FastNEAR (NEAR mainnet RPC)</div></td><td class="small">Account safety and Simulate on mainnet</td><td class="small">the mainnet account ids you enter; read-only queries (accounts, keys, contract code and state, token metadata)</td></tr><tr><td><span class="mono">rpc.intea.rs</span><div class="small muted">Intear (NEAR RPC that serves large contract state)</div></td><td class="small">Simulate, only for contracts over 50 kB of state</td><td class="small">the contract account id and the storage keys the simulation reads</td></tr><tr><td><span class="mono">cloud-api.near.ai</span><div class="small muted">NEAR AI Cloud</div></td><td class="small">Prompt injection → Your own injection, with a live model (optional)</td><td class="small">your NEAR AI API key (Authorization header), the task and document you typed, and the agent's tool definitions</td></tr></tbody></table>
+  <p class="small muted">Every request also reveals your IP address to that host, under its own privacy policy. A NEAR AI key you type stays in this tab's memory only and is sent only to NEAR AI; use a separate key with a low limit, and revoke it afterwards. Account ids are public on-chain data. Details: <a href="https://github.com/Richard2606-hub/AgentFuzz/blob/main/PRIVACY.md" target="_blank" rel="noopener">PRIVACY.md</a> · security reports: <a href="https://github.com/Richard2606-hub/AgentFuzz/blob/main/SECURITY.md" target="_blank" rel="noopener">SECURITY.md</a>.</p>
+</section>
 </main>
-<script>
-function afTab(name){document.querySelectorAll(".tab-btn").forEach(function(x){x.classList.toggle("active",x.dataset.tab===name)});document.querySelectorAll(".tab-content").forEach(function(x){x.classList.toggle("active",x.id==="tab-"+name)})}
-document.querySelectorAll(".tab-btn").forEach(function(b){b.addEventListener("click",function(){afTab(b.dataset.tab);history.replaceState(null,"","#"+b.dataset.tab)})});
-function afHash(){var t=location.hash.slice(1);if(t&&document.getElementById("tab-"+t))afTab(t)}afHash();window.addEventListener("hashchange",afHash);
-</script>
-<script src="playground.js" onerror="afTab('scorecard')"></script>
+<script src="playground.js"></script>
+<script>function afTab(name){document.querySelectorAll(".tab-btn").forEach(function(x){x.classList.toggle("active",x.dataset.tab===name)});document.querySelectorAll(".tab-content").forEach(function(x){x.classList.toggle("active",x.id==="tab-"+name)})}document.querySelectorAll(".tab-btn").forEach(function(b){b.addEventListener("click",function(){afTab(b.dataset.tab);history.replaceState(null,"","#"+b.dataset.tab)})});function afHash(){var t=location.hash.slice(1);if(t&&document.getElementById("tab-"+t))afTab(t)}if(window.AF_PLAYGROUND){afHash();window.addEventListener("hashchange",afHash)}else afTab("scorecard");</script>
 </body></html>

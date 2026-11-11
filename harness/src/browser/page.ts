@@ -21,8 +21,10 @@ const statusBadge = (s: string) =>
   badge(s === "held" ? "ok" : s === "broken" ? "bad" : s === "searching" ? "run" : s === "not-exercised" ? "warn" : "muted", s.replace("-", " "));
 const outcomeBadge = (o: string) => badge(o === "blocked" ? "ok" : o === "breach" ? "bad" : o === "resisted" ? "info" : "muted", o);
 
-// Tab switching is a small inline script in index.html, so the scorecard works without this bundle.
+// Tab switching is a small inline script in index.html, so the scorecard works without this bundle;
+// it runs after this file and falls back to the scorecard tab unless this flag is set.
 $("pg-missing").hidden = true;
+(window as unknown as { AF_PLAYGROUND: boolean }).AF_PLAYGROUND = true;
 
 // ---------------------------------------------------------------- worker
 
@@ -35,8 +37,21 @@ let upload: { name: string; bytes: ArrayBuffer } | undefined;
 /** Status line of the tab whose job is running, for errors. */
 let statusId = "fz-status";
 
+/**
+ * The worker runs from a blob: URL so it inherits this page's Content-Security-Policy (a worker
+ * loaded from its own URL takes the policy of that response's headers, and GitHub Pages sends none).
+ * That is what limits the worker's fetches, including the NEAR AI key, to the allowed hosts.
+ */
+let workerUrl: string | undefined;
+async function loadWorkerSource(): Promise<void> {
+  const res = await fetch(new URL("playground-worker.js", location.href));
+  if (!res.ok) throw new Error(`playground-worker.js: HTTP ${res.status}`);
+  workerUrl = URL.createObjectURL(new Blob([await res.text()], { type: "text/javascript" }));
+}
+
 function startWorker() {
-  worker = new Worker(new URL("playground-worker.js", location.href));
+  if (!workerUrl) throw new Error("worker source not loaded");
+  worker = new Worker(workerUrl);
   worker.onmessage = (ev: MessageEvent<FromWorker>) => onMessage(ev.data);
   worker.onerror = (ev) => {
     $("fz-status").textContent = `Engine failed to start: ${ev.message || "see the browser console"}`;
@@ -561,4 +576,6 @@ updateBuilder();
 
 setBusy(true);
 $<HTMLButtonElement>("fz-stop").disabled = true;
-startWorker();
+loadWorkerSource().then(startWorker, (e: unknown) => {
+  $("fz-status").textContent = `Engine failed to load: ${e instanceof Error ? e.message : String(e)}`;
+});

@@ -61,7 +61,7 @@ Every claim in this README is a command. Expected output is abbreviated.
 | `cd harness && node bin/agentfuzz.mjs diff --target reference --runs 20` | Differential test: runs identical sequences on nearsim and real nearcore sandbox, confirming 20/20 agree |
 | `cd harness && node bin/agentfuzz.mjs scan wrap-near.near` | Reads the mainnet account and flags it: `✗ Looks like wrap.near (Wrapped NEAR (wNEAR)), but is a different account`, exit code 2. Try your own account: risky keys are `!` (exit 3), nothing risky exits 0 |
 | `cd harness && node bin/agentfuzz.mjs simulate --signer guard-naive.agentfuzz-28213.testnet --to guard-naive.agentfuzz-28213.testnet --call rotate_key --args '{"new_public_key":"ed25519:8az9oB8mcn3DBYDCg6v32JhSsktcWdGwp8D5x9mU1aLo"}' --gas 60` | Forks testnet, runs the deployed naive guard's real wasm on its live state: `Adds a full-access key … Removes the key …`, `✗ Gives someone full control of your account`, exit code 2. `--to wrap-near.near --transfer 1 --signer root.near`: `✗ Receiver wrap-near.near: looks like wrap.near` |
-| `make test` | 38 contract unit tests (if Rust is installed) and 108 harness tests, including the planted-bug matrix, a check that the published scorecard still reproduces, and a check that the browser bundle gives the CLI's exact results |
+| `make test` | 38 contract unit tests (if Rust is installed) and 113 harness tests, including the planted-bug matrix, a check that the published scorecard still reproduces, a check that the browser bundle gives the CLI's exact results, and the site's data policy (CSP, allowed hosts, no storage) |
 | `make sandbox-test` (Linux/macOS) | The same wasm on a real nearcore sandbox via near-workspaces: INV-3/INV-4 hold on the reference guard; the naive key escalation and look-alike payment reproduce on nearcore |
 
 ## What it checks
@@ -359,7 +359,21 @@ targets/third-party/         adapters + policy for third-party guards
 harness/src/browser/         playground: Web Worker engine, page controller, fetch client for NEAR AI
 harness/src/platform/        crypto for Node (node:crypto) and browsers (@noble), same bytes
 web/                         static site: scorecard + playground (built by make web; GitHub Pages)
+SECURITY.md, PRIVACY.md      vulnerability reporting, site hardening, data flows
 ```
+
+## Security and privacy
+
+The website collects nothing: no accounts, cookies, browser storage, analytics or third-party
+scripts, and no server of ours. A **Content-Security-Policy** lets the browser connect only to the
+site itself and four named hosts (two FastNEAR RPCs, the large-state RPC, and NEAR AI Cloud for the
+optional live model), and the Web Worker is started from a `blob:` URL so the same policy covers
+it. The hosts, their purpose and what each receives are defined once in
+`harness/src/report/site-policy.ts`; the CSP and the page's **Privacy & security** notice are
+generated from it, and a test fails if the shipped bundles could contact anything else, use browser
+storage or `eval`, or if [PRIVACY.md](PRIVACY.md) lists different hosts. The chain tools never ask
+for keys and never sign. CI also runs `npm audit` on the runtime dependencies.
+See [SECURITY.md](SECURITY.md) (reporting and measures) and [PRIVACY.md](PRIVACY.md) (data flows).
 
 ## Limits (honest list)
 
@@ -388,10 +402,14 @@ web/                         static site: scorecard + playground (built by make 
   [openai](https://github.com/openai/openai-node) client pointed at NEAR AI Cloud,
   [near-api-js](https://github.com/near/near-api-js) (testnet anchoring),
   [vitest](https://vitest.dev), [tsx](https://tsx.is), TypeScript.
+* Browser playground: [@noble/hashes and @noble/curves](https://paulmillr.com/noble/) 2.2.0
+  (SHA-256, keccak, ed25519 in the browser), bundled with [esbuild](https://esbuild.github.io)
+  0.28.2; both pinned to exact versions.
 * **AI assistance**: this project was built with AI coding assistants. The seed prompt-layer
   corpus was authored with AI assistance; it is labelled `"source": "seed"` in the corpus files.
-* All attacks run against freshly deployed contracts in a local chain. AgentFuzz never calls
-  anyone's live testnet or mainnet contracts.
+* All attacks (fuzzing and prompt injection) run against freshly deployed contracts in a local
+  chain; they never touch anyone's deployed contracts. `scan`, `check` and `simulate` only read
+  public state from mainnet or testnet, and never sign or send anything.
 
 ## Licence
 

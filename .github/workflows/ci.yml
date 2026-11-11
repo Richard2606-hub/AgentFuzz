@@ -35,8 +35,10 @@ jobs:
           cache: npm
           cache-dependency-path: harness/package-lock.json
       - run: npm ci
+      - name: dependency audit (runtime dependencies, high severity and above)
+        run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
-      - name: unit + integration tests (incl. planted-bug matrix)
+      - name: unit + integration tests (incl. planted-bug matrix, site data policy)
         run: npm test
       - name: planted-bug gate (fixed seed; fails if any planted bug is missed)
         run: node bin/agentfuzz.mjs matrix --seed 7 --runs 150

@@ -53,7 +53,7 @@ can't be edited afterwards.
 - [ ] Form: tracks = AI Security & Defense, Agent Economy, Open Innovation; description 20–2,000 characters; Website field left empty
 - [ ] Submitted no later than Sat Nov 14, 20:00 MYT (deadline Nov 14, 23:59 UTC)
 - [ ] Scorecard page kept online through Nov 25 (GitHub Pages workflow `pages.yml`)
-- [ ] On the live Pages site: naive seed 42 / 200 runs shows 6/6 broken, reference 6/6 held, the window-lag upload breaks INV-1, the prompt tab shows 9 breaches on naive (28 scenarios), Check a wallet shows guard-naive broken and guard-reference held, Account safety shows wrap-near.near as a look-alike (danger) and guard-reference as nothing risky, Simulate shows the naive rotate_key adding a full-access key (danger) and the reference payment succeeding
+- [ ] On the live Pages site: naive seed 42 / 200 runs shows 6/6 broken, reference 6/6 held, the window-lag upload breaks INV-1, the prompt tab shows 9 breaches on naive (28 scenarios), Check a wallet shows guard-naive broken and guard-reference held, Account safety shows wrap-near.near as a look-alike (danger) and guard-reference as nothing risky, Simulate shows the naive rotate_key adding a full-access key (danger) and the reference payment succeeding, the Privacy & security notice lists four hosts, and the browser console shows no CSP violations
 - [ ] Re-read the live HACKATHON.md for last-minute rule changes
 
 ## Form description (≈900 characters)
