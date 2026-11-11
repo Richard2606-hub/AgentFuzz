@@ -18,6 +18,7 @@ flowchart TD
   SIM --> CHK["Invariant checkers<br/>harness/src/invariants/check.ts<br/>ledger, receipts, access keys"]
   CHK --> SC["Scorecard<br/>harness/src/report<br/>JSON + static HTML (web/)"]
   SC --> ANC["Scoreboard contract<br/>contracts/scoreboard<br/>record(run_id, sha256, target, commit)"]
+  RUN -.same code, bundled.-> WEB["Browser playground<br/>harness/src/browser (Web Worker)<br/>web/ on GitHub Pages"]
 ```
 
 ## Components
@@ -28,25 +29,27 @@ flowchart TD
 | Naive guard | `contracts/guard-naive` | Same interface + `rotate_key`, eight planted bugs as cargo features, seven of them in the default build (`BUGS.md`). |
 | Scoreboard | `contracts/scoreboard` | Append-only `run_id → {sha256, target, commit, submitter, block}` registry; caller pays storage. 5 unit tests. |
 | Wasm artifacts | `artifacts/`, `scripts/build-contracts.mjs` | Committed builds of every contract and every single-bug variant, with `manifest.json` (sha256 per file). Built with `--cfg near` (what `cargo near build` sets) and path remapping. |
-| nearsim | `harness/src/sim` | In-process NEAR runtime. `vm.ts` implements the `env.*` host-function ABI over Node's WebAssembly so the **real compiled contracts** execute; `chain.ts` models accounts, access keys (full / function-call with receiver, method list, allowance), transaction validation and fees, receipts executed block by block, promises/callbacks/joint promises/`promise_return`, data receipts, deposit refunds, state rollback, storage staking, and a value-transfer ledger. |
+| nearsim | `harness/src/sim` | In-process NEAR runtime. `vm.ts` implements the `env.*` host-function ABI over the platform's WebAssembly (Node or a browser) so the **real compiled contracts** execute; `chain.ts` models accounts, access keys (full / function-call with receiver, method list, allowance), transaction validation and fees, receipts executed block by block, promises/callbacks/joint promises/`promise_return`, data receipts, deposit refunds, state rollback, storage staking, and a value-transfer ledger. |
 | Backend interface | `harness/src/near/backend.ts` | What the harness needs from a chain; implemented by nearsim (`harness/src/sim/backend.ts`) and by real nearcore sandbox (`harness/src/sandbox/backend.ts`). The near-workspaces sandbox is the ground-truth backend for integration tests (`tests/sandbox`). |
 | Differential engine | `harness/src/differential.ts` | Differential testing engine: feeds identical fast-check attack sequences through both nearsim and a real nearcore sandbox, verifying agreement across all invariant verdicts (`agentfuzz diff`). |
 | World | `harness/src/world.ts` | One fixture per run: owner, three payees (one deletable), attacker + look-alikes, guard deployed with deploy+init+delete-deployer-key; agent keyring. |
-| Target registry + adapters | `harness/src/targets` | Which wasm to attack and how to call it. `agentfuzz-guard-v1` adapter for our guards; any third-party guard plugs in with its own adapter. Each target can declare `expectBroken` for the planted-bug matrix. |
+| Target registry + adapters | `harness/src/targets` | Which wasm to attack and how to call it (`specs.ts` is the pure target table, `registry.ts` reads files). `agentfuzz-guard-v1` adapter for our guards; any third-party guard plugs in with its own adapter. Each target can declare `expectBroken` for the planted-bug matrix. |
 | Contract-layer generator | `harness/src/generators/contract.ts` | fast-check arbitraries over symbolic steps (`pay`, `burst`, `wait`, `probe`, `extra`, `drain`, `exploit`, `failPayee`, `failPay`, `owner`). Versioned (`GENERATOR_VERSIONS`): a released version's mix is frozen, and scorecards record the version so `verify` replays the same sequence stream. |
 | Attack steps | `harness/src/attacks/steps.ts` | Resolve symbolic steps against the world and execute them; record a trace (pay txs, probe outcomes, owner failures, allowance exhaustion, failed transfers). |
 | Invariant checkers | `harness/src/invariants` | INV-1..INV-6 exactly as in THREAT_MODEL.md. Passive checks read the ledger/keys; active end-of-run checks (INV-6 recovery, INV-4 revoke+withdraw) run last. |
-| Runner | `harness/src/runner.ts` | One fast-check search per invariant (same seed ⇒ same sequence stream), memoised so each distinct sequence executes once; counterexamples are shrunk and saved as `out/repro-*.json`; `replay` re-executes a repro. |
+| Runner | `harness/src/campaign.ts` (pure), `harness/src/runner.ts` (repro files) | One fast-check search per invariant (same seed ⇒ same sequence stream), memoised so each distinct sequence executes once; counterexamples are shrunk and saved as `out/repro-*.json`; `replay` re-executes a repro. |
 | Planted-bug matrix | `harness/src/matrix.ts` | AgentFuzz's own end-to-end gate: every single-bug build must break its invariant; controls must stay clean. |
-| Reference agent | `harness/src/agent` | Minimal payments agent whose only authority is the function-call key. Planners: `CompromisedPlanner` (offline, worst case), `CassettePlanner` (offline replay of recorded model decisions), `LLMPlanner` (NEAR AI Cloud, OpenAI-compatible). After the agent acts, the attacker cashes in any key it got onto `G`. |
+| Reference agent | `harness/src/agent` | Minimal payments agent whose only authority is the function-call key. Planners: `CompromisedPlanner` (offline, worst case), `CassettePlanner` (offline replay of recorded model decisions), `LLMPlanner` (NEAR AI Cloud, OpenAI-compatible, through a small `ChatClient`: the OpenAI SDK in Node, loaded lazily, or `fetch` in the browser). After the agent acts, the attacker cashes in any key it got onto `G`. |
 | Prompt corpus | `corpus/prompt` | Committed A1/A2 scenarios with legitimate work, attacker calls and the invariants they aim at. |
-| Prompt runner | `harness/src/prompt-runner.ts` | Runs every scenario on a fresh world, scores resisted / blocked / breach. |
+| Prompt runner | `harness/src/prompt-campaign.ts` (pure), `harness/src/prompt-runner.ts` (corpus files, cassettes, planners) | Runs every scenario on a fresh world, scores resisted / blocked / breach. |
 | Scorecard | `harness/src/report` | Deterministic body (no wall-clock data) → canonical JSON → SHA-256 → run id. Self-contained HTML. |
 | Anchoring | `harness/src/anchor/anchor.ts` | nearsim (executes `scoreboard.wasm` offline), testnet (near-api-js), local file fallback; testnet read-back for `verify`. |
 | Report orchestration | `harness/src/report.ts` | `report`, `verify` (body hash, deterministic re-run, on-chain record). |
-| CLI | `harness/src/cli.ts`, `cli-report.ts`, `bin/agentfuzz.mjs` | `targets`, `fuzz`, `diff`, `replay`, `matrix`, `prompt`, `report`, `verify`, `anchor`, `scoreboard-deploy`, `demo-offline`. |
+| CLI | `harness/src/cli.ts`, `cli-report.ts`, `bin/agentfuzz.mjs` | `targets`, `fuzz`, `diff`, `replay`, `matrix`, `prompt`, `report`, `verify`, `render-web`, `anchor`, `scoreboard-deploy`, `demo-offline`. |
 | GitHub Action | `.github/actions/agentfuzz` | Drop-in reusable composite action (`agentfuzz-action`) allowing any external guard repository to run AgentFuzz fuzzing and prompt injection in CI. |
-| Static site | `web/` | `index.html` + `scorecard.json` written by `make report`; served by GitHub Pages. |
+| Platform crypto | `harness/src/platform`, `harness/src/util/bytes.ts` | sha256 and ed25519 behind one interface: `node:crypto` in Node, `@noble/hashes` + `@noble/curves` in browser bundles (byte-identical, tested); Buffer-free hex/base64/UTF-16 helpers. |
+| Browser playground | `harness/src/browser` | `worker.ts` (Web Worker) fetches the committed wasm, manifest and corpus and runs `engine.ts`, which calls the same `runCampaign` / `runPromptCampaign` as the CLI and streams progress, repros (same bytes and file names as the CLI) and prompt results; `page.ts` renders them; `llm-fetch.ts` is the optional NEAR AI client for custom text. No result is stored in the page. |
+| Static site | `web/`, `scripts/build-web.mjs`, `scripts/serve-web.mjs` | `scorecard.json` written by `make report`; `make web` bundles the playground with esbuild (failing if a bundle pulls in `node:` modules or the OpenAI SDK), copies `artifacts/` and the corpus, and re-renders `index.html` (`agentfuzz render-web`). The Pages workflow runs the same build. |
 
 ## Run lifecycle
 

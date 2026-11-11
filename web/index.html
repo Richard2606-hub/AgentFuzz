@@ -75,7 +75,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--accent)}input[type=fi
     </div></div>
     <div class="controls">
       <div class="field-box wide"><label for="fz-target">Guard</label><select id="fz-target" disabled><option>loading…</option></select></div>
-      <div class="field-box wide"><label for="fz-upload">Or upload your guard (.wasm, agentfuzz-guard-v1 interface)</label><input type="file" id="fz-upload" accept=".wasm,application/wasm"></div>
+      <div class="field-box wide"><label for="fz-upload">Or upload your guard (.wasm, agentfuzz-guard-v1 interface)</label><input type="file" id="fz-upload" accept=".wasm,application/wasm"><div class="small muted">Audited as agentfuzz-guard-v1: the agent key may call only <code>pay</code>, so a wider key scope (like the naive builds' <code>rotate_key</code>) is reported under INV-3.</div></div>
       <div class="field-box"><label for="fz-seed">Seed</label><input type="number" id="fz-seed" value="42" min="0"></div>
       <div class="field-box"><label for="fz-runs">Runs per invariant</label><input type="number" id="fz-runs" value="100" min="1" max="2000"></div>
       <div class="field-box"><label for="fz-gen">Generator</label><select id="fz-gen"><option value="2">v2 (default)</option><option value="1">v1</option></select></div>

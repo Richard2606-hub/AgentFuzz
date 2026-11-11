@@ -27,6 +27,8 @@ let scenarios: ScenarioInfo[] = [];
 let job = 0;
 let busy = false;
 let upload: { name: string; bytes: ArrayBuffer } | undefined;
+/** Status line of the tab whose job is running, for errors. */
+let statusId = "fz-status";
 
 function startWorker() {
   worker = new Worker(new URL("playground-worker.js", location.href));
@@ -75,7 +77,7 @@ function onMessage(m: FromWorker) {
       return;
     case "error":
       setBusy(false);
-      for (const id of ["fz-status", "pr-status", "cu-status"]) $(id).textContent = `Error: ${m.message}`;
+      $(statusId).textContent = `Error: ${m.message}`;
       return;
   }
 }
@@ -154,7 +156,7 @@ function reproHtml(r: ReproView): string {
               .join("")}</li>`,
         )
         .join("")
-    : "<li><em>no attack steps needed: the end-of-run owner check fails on a fresh deployment</em></li>";
+    : "<li><em>no attack steps needed: the invariant already fails on a freshly deployed guard</em></li>";
   const url = URL.createObjectURL(new Blob([r.json], { type: "application/json" }));
   const custom = !targets.some((t) => t.name === currentTarget);
   return `<div class="repro">
@@ -214,6 +216,7 @@ $("fz-run").addEventListener("click", () => {
   $("fz-summary").innerHTML = "";
   $("fz-grid").innerHTML = "";
   $("fz-status").textContent = "running…";
+  statusId = "fz-status";
   setBusy(true);
   job++;
   send({
@@ -271,6 +274,7 @@ function runPrompt(ids: string[]) {
   $("pr-results").innerHTML = "";
   $("pr-summary").innerHTML = "";
   $("pr-status").textContent = `running ${ids.length} scenario(s)…`;
+  statusId = "pr-status";
   setBusy(true);
   job++;
   send({ type: "prompt", job, target: $<HTMLSelectElement>("pr-target").value, scenarioIds: ids });
@@ -287,6 +291,7 @@ $("cu-run").addEventListener("click", () => {
   customRun = true;
   $("cu-results").innerHTML = "";
   $("cu-status").textContent = "asking the model…";
+  statusId = "cu-status";
   setBusy(true);
   job++;
   send({ type: "prompt-custom", job, target: $<HTMLSelectElement>("cu-target").value, document: document_, task: $<HTMLInputElement>("cu-task").value, apiKey, model: $<HTMLInputElement>("cu-model").value.trim() || undefined });

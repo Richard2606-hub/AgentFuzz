@@ -46,7 +46,8 @@ Every claim in this README is a command. Expected output is abbreviated.
 
 | Do | See |
 |----|-----|
-| `make demo-offline` | The whole demo in ~10 s: naive guard **6/6 invariants BROKEN** with minimised repros, reference guard **6/6 invariants held**, prompt layer **20/20 blocked** on reference vs **6 breaches** on naive, scorecard written to `out/scorecard.html` and `web/index.html`, hash anchored through `scoreboard.wasm` |
+| `make demo-offline` | The whole demo in ~10 s: naive guard **6/6 invariants BROKEN** with minimised repros, reference guard **6/6 invariants held**, prompt layer **20/20 blocked** on reference vs **6 breaches** on naive, scorecard written to `out/scorecard.html` (`web/` is left alone unless you pass `--web`), hash anchored through `scoreboard.wasm` |
+| `make web && make serve-web`, open http://localhost:8080 | The playground, running the same engine in your browser (a Web Worker, no server). **Fuzz a guard** on `naive`, seed 42, 200 runs: **6/6 broken**, 154 attack sequences, 832 steps, each break with its minimised repro, a download of the repro file (byte-identical to the CLI's) and the `agentfuzz replay` command; `reference`: **6/6 held**; uploading `artifacts/guard_naive__bug-window-lag.wasm`: **INV-1 broken**. **Prompt injection**: the 20 corpus scenarios executed for real: 14 blocked / 6 breaches on `naive`, 20 blocked on `reference` |
 | `make fuzz TARGET=naive` | `INV-1 BROKEN … minimised repro (1 step, classes A6): same-block burst of 2 pays …` and one `repro saved: out/repro-naive-INV-*.json` per broken invariant |
 | `make fuzz TARGET=reference` | `INV-1 HELD … INV-6 HELD`, `all invariants held · ~190 attack sequences`, INV-5 exercised in ~50 runs |
 | `make fuzz TARGET=naive:bug-window-lag` | `INV-1 BROKEN` with a repro like `wait 2 window(s) …; same-block burst of 2 pays: remaining budget, remaining budget` (window-rollover bug: after an idle period the cap stops applying) |
@@ -57,7 +58,7 @@ Every claim in this README is a command. Expected output is abbreviated.
 | `make report` | `out/scorecard.json`, `out/scorecard.html`, `web/index.html`; run id `af-42-…`; anchors: testnet if `.env` is set, otherwise nearsim + `out/anchors.local.json` |
 | `make verify` | `✓ body hash matches … ✓ deterministic re-run reproduced the identical hash … verified` |
 | `cd harness && node bin/agentfuzz.mjs diff --target reference --runs 20` | Differential test: runs identical sequences on nearsim and real nearcore sandbox, confirming 20/20 agree |
-| `make test` | 32 contract unit tests (if Rust is installed) and 68 harness tests, including the planted-bug matrix and a check that the published scorecard still reproduces |
+| `make test` | 32 contract unit tests (if Rust is installed) and 78 harness tests, including the planted-bug matrix, a check that the published scorecard still reproduces, and a check that the browser bundle gives the CLI's exact results |
 | `make sandbox-test` (Linux/macOS) | The same wasm on a real nearcore sandbox via near-workspaces: INV-3/INV-4 hold on the reference guard; the naive key escalation and look-alike payment reproduce on nearcore |
 
 ## What it checks
@@ -115,6 +116,28 @@ scorecard JSON + static HTML ──► SHA-256 ──► scoreboard contract (te
   Old scorecards keep verifying with v1.
 
 Full component map: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Browser playground
+
+`web/index.html` (GitHub Pages) has the published scorecard and a playground that runs the real
+engine client-side: no server, no scripted results.
+
+* **Fuzz a guard**: pick `reference`, `naive`, `naive-fixed` or any single-bug build, or upload
+  your own `.wasm` (driven through the `agentfuzz-guard-v1` adapter). A Web Worker fetches the
+  committed wasm and runs `runCampaign` from `harness/src/campaign.ts`: the attack log and the
+  invariant grid update as runs complete, and every break shows its minimised repro, a download of
+  the repro file and the CLI command that replays it.
+* **Prompt injection**: the committed corpus scenarios go through the reference agent and the
+  guard on a fresh nearsim chain, showing the tool calls the planner made and what the chain did.
+  Custom text needs a live model: paste a NEAR AI API key (kept in page memory only, sent only to
+  `cloud-api.near.ai`, which allows browser requests) and the model plans the agent's actions.
+* **Same results as the CLI**: the browser build swaps `node:crypto` for `@noble/hashes` +
+  `@noble/curves` and nothing else. `harness/test/browser.test.ts` bundles the engine exactly as
+  the site does, runs it, and checks verdicts, counts and repro bytes against the CLI.
+
+Build it with `make web` (esbuild bundles, wasm, corpus and `index.html` into `web/`; the
+generated files are not committed) and open it with `make serve-web`, since browsers block Web
+Workers on `file://`. The Pages workflow runs the same build on every push to `main`.
 
 ## NEAR primitives used
 
@@ -220,7 +243,9 @@ harness/src/anchor/          scoreboard anchoring (nearsim / testnet / local)
 corpus/prompt/               committed prompt-layer attacks
 tests/sandbox/               near-workspaces integration tests (real nearcore)
 targets/third-party/         adapters + policy for third-party guards
-web/                         static scorecard site (GitHub Pages)
+harness/src/browser/         playground: Web Worker engine, page controller, fetch client for NEAR AI
+harness/src/platform/        crypto for Node (node:crypto) and browsers (@noble), same bytes
+web/                         static site: scorecard + playground (built by make web; GitHub Pages)
 ```
 
 ## Limits (honest list)
@@ -231,6 +256,10 @@ web/                         static scorecard site (GitHub Pages)
 * Prompt-layer results with a live model depend on the model; the committed corpus is a snapshot.
 * Guards are checked on native NEAR transfers; NEP-141 token payments are not modelled yet.
 * A8 (social engineering of a human approval step) is not implemented.
+* The browser playground drives uploaded guards through the `agentfuzz-guard-v1` interface only;
+  guards with their own adapter (third-party targets) run from the CLI. Under that interface the
+  agent key may call only `pay`, so uploading one of the naive builds (whose agent key can also
+  call `rotate_key`) additionally reports INV-3, exactly as `agentfuzz fuzz --target file.wasm` does.
 * Third-party guards: none are bundled in the default scorecard; see
   [targets/third-party/README.md](targets/third-party/README.md) for the opt-in policy.
 

@@ -3,7 +3,7 @@
 ## 90-second video
 
 Record a terminal at ~110 columns (`make demo-offline` prints everything in order), then the
-scorecard page and the NearBlocks link.
+browser playground (`make web && make serve-web`, or the Pages site), then the NearBlocks link.
 
 | Time | On screen | Voice-over / caption |
 |------|-----------|----------------------|
@@ -11,7 +11,8 @@ scorecard page and the NearBlocks link.
 | 0:10–0:30 | `make fuzz TARGET=naive`, attacks streaming | "AgentFuzz throws LLM-written injections and fuzzed call sequences at a guard in a local sandbox." |
 | 0:30–0:50 | `make fuzz TARGET=naive:bug-window-lag` → `INV-1 BROKEN`, minimised repro (idle, then two transfers across a window boundary) | "It found a window-rollover bug and shrank it to a two-step repro." |
 | 0:50–1:05 | `make fuzz TARGET=reference`: all six invariants held; `make prompt TARGET=naive`: injected `rotate_key` drains the wallet | "The reference guard holds all six invariants. The naive one loses its whole balance to one poisoned email." |
-| 1:05–1:20 | `web/index.html` scorecard + testnet explorer showing the report hash | "Every score is hashed on NEAR testnet, so it can't be edited later. `agentfuzz verify` re-runs it." |
+| 1:05–1:15 | Playground, **Fuzz a guard**: upload `artifacts/guard_naive__bug-window-lag.wasm`, INV-1 turns red with its repro | "The same engine runs in your browser. Upload a guard and watch it break." |
+| 1:15–1:20 | **Published scorecard** tab + testnet explorer showing the report hash | "Every score is hashed on NEAR testnet, so it can't be edited later. `agentfuzz verify` re-runs it." |
 | 1:20–1:30 | Repo URL, `agentfuzz fuzz --target your_guard.wasm` | "Run it on your guard." |
 
 Tips: `NO_COLOR=1` for plain logs; `--runs 100` makes every command finish in about a second.
@@ -47,6 +48,7 @@ can't be edited afterwards.
 - [ ] Form: tracks = AI Security & Defense, Agent Economy, Open Innovation; description 20–2,000 characters; Website field left empty
 - [ ] Submitted no later than Sat Nov 14, 20:00 MYT (deadline Nov 14, 23:59 UTC)
 - [ ] Scorecard page kept online through Nov 25 (GitHub Pages workflow `pages.yml`)
+- [ ] On the live Pages site: naive seed 42 / 200 runs shows 6/6 broken, reference 6/6 held, the window-lag upload breaks INV-1, the prompt tab shows 6 breaches on naive
 - [ ] Re-read the live HACKATHON.md for last-minute rule changes
 
 ## Form description (≈900 characters)
@@ -61,4 +63,5 @@ is shrunk to a minimal, replayable repro. The real contract wasm runs in nearsim
 in-process NEAR runtime, and is confirmed on a near-workspaces sandbox. Results become a
 scorecard whose SHA-256 is anchored in a testnet scoreboard contract; `agentfuzz verify` re-runs
 it and recomputes the hash. All 7 planted bugs are found; the reference guard holds all 6
-invariants.
+invariants. A static web playground runs the same engine in the browser: fuzz any guard build or
+your own wasm, and run the prompt corpus, with results identical to the CLI.
