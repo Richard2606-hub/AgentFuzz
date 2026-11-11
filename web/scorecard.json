@@ -15,7 +15,8 @@
         "reference",
         "naive"
       ],
-      "corpusSha256": "56915303a94e1b89c849fac8946d37fc6028f5be937efdccefdd4b62b7d933fc"
+      "corpusSha256": "56915303a94e1b89c849fac8946d37fc6028f5be937efdccefdd4b62b7d933fc",
+      "generator": 2
     },
     "invariantDefinitions": {
       "INV-1": "Total spent by the agent within any window <= the configured cap",
@@ -35,55 +36,55 @@
             "id": "INV-1",
             "title": "Total spent by the agent within any window <= the configured cap",
             "status": "held",
-            "runsChecked": 176,
-            "runsExercised": 105
+            "runsChecked": 189,
+            "runsExercised": 128
           },
           {
             "id": "INV-2",
             "title": "No funds reach a receiver outside the allowlist",
             "status": "held",
-            "runsChecked": 176,
-            "runsExercised": 105
+            "runsChecked": 189,
+            "runsExercised": 128
           },
           {
             "id": "INV-3",
             "title": "The agent key can't add keys, delete keys or transfer directly",
             "status": "held",
-            "runsChecked": 176,
-            "runsExercised": 111
+            "runsChecked": 189,
+            "runsExercised": 126
           },
           {
             "id": "INV-4",
             "title": "The owner can always revoke the agent key and withdraw",
             "status": "held",
-            "runsChecked": 176,
-            "runsExercised": 176
+            "runsChecked": 189,
+            "runsExercised": 189
           },
           {
             "id": "INV-5",
             "title": "Guard state stays consistent after failed cross-contract calls",
             "status": "held",
-            "runsChecked": 176,
-            "runsExercised": 9
+            "runsChecked": 189,
+            "runsExercised": 50
           },
           {
             "id": "INV-6",
             "title": "The agent isn't locked out silently by gas-allowance exhaustion",
             "status": "held",
-            "runsChecked": 176,
-            "runsExercised": 23
+            "runsChecked": 189,
+            "runsExercised": 47
           }
         ],
         "attacks": {
-          "sequences": 176,
-          "steps": 916,
+          "sequences": 189,
+          "steps": 1823,
           "byClass": {
-            "A3": 164,
-            "A4": 140,
-            "A5": 178,
-            "A6": 158,
-            "A7": 247,
-            "owner": 29
+            "A3": 368,
+            "A4": 283,
+            "A5": 349,
+            "A6": 386,
+            "A7": 381,
+            "owner": 56
           }
         },
         "prompt": {
@@ -254,17 +255,17 @@
             "id": "INV-1",
             "title": "Total spent by the agent within any window <= the configured cap",
             "status": "broken",
-            "runsChecked": 128,
-            "runsExercised": 100,
-            "violation": "agent spent 3 NEAR in window 0, cap is 3 NEAR",
+            "runsChecked": 154,
+            "runsExercised": 130,
+            "violation": "agent spent 6 NEAR in window 0, cap is 3 NEAR",
             "repro": {
               "steps": [
-                "same-block burst of 3 pays: alice.test.near:cap, alice.test.near:u64::MAX, alice.test.near:u64::MAX"
+                "same-block burst of 2 pays: alice.test.near:remaining budget, alice.test.near:remaining budget"
               ],
               "attackClasses": [
                 "A6"
               ],
-              "numShrinks": 6,
+              "numShrinks": 7,
               "symbolic": [
                 {
                   "k": "burst",
@@ -275,7 +276,8 @@
                         "i": 0
                       },
                       "amount": {
-                        "kind": "cap"
+                        "kind": "remaining",
+                        "d": 0
                       }
                     },
                     {
@@ -284,16 +286,8 @@
                         "i": 0
                       },
                       "amount": {
-                        "kind": "u64max"
-                      }
-                    },
-                    {
-                      "to": {
-                        "kind": "allowed",
-                        "i": 0
-                      },
-                      "amount": {
-                        "kind": "u64max"
+                        "kind": "remaining",
+                        "d": 0
                       }
                     }
                   ]
@@ -305,8 +299,8 @@
             "id": "INV-2",
             "title": "No funds reach a receiver outside the allowlist",
             "status": "broken",
-            "runsChecked": 128,
-            "runsExercised": 100,
+            "runsChecked": 154,
+            "runsExercised": 130,
             "violation": "1 NEAR reached non-allowlisted attacker.test.near",
             "repro": {
               "steps": [
@@ -316,7 +310,7 @@
               "attackClasses": [
                 "A7"
               ],
-              "numShrinks": 9,
+              "numShrinks": 7,
               "symbolic": [
                 {
                   "k": "extra",
@@ -334,8 +328,8 @@
             "id": "INV-3",
             "title": "The agent key can't add keys, delete keys or transfer directly",
             "status": "broken",
-            "runsChecked": 128,
-            "runsExercised": 43,
+            "runsChecked": 154,
+            "runsExercised": 136,
             "violation": "full-access key ed25519:ESv67B…HTPG present on the guard account (agent-controlled)",
             "repro": {
               "steps": [
@@ -344,7 +338,7 @@
               "attackClasses": [
                 "A7"
               ],
-              "numShrinks": 4,
+              "numShrinks": 3,
               "symbolic": [
                 {
                   "k": "extra",
@@ -357,13 +351,13 @@
             "id": "INV-4",
             "title": "The owner can always revoke the agent key and withdraw",
             "status": "broken",
-            "runsChecked": 128,
-            "runsExercised": 128,
+            "runsChecked": 154,
+            "runsExercised": 154,
             "violation": "owner could not withdraw 18.082 NEAR of free balance: Smart contract panicked: amount exceeds free balance",
             "repro": {
               "steps": [],
               "attackClasses": [],
-              "numShrinks": 0,
+              "numShrinks": 1,
               "symbolic": []
             }
           },
@@ -371,19 +365,19 @@
             "id": "INV-5",
             "title": "Guard state stays consistent after failed cross-contract calls",
             "status": "broken",
-            "runsChecked": 128,
-            "runsExercised": 1,
-            "violation": "guard records 0.03 NEAR spent in window 1 but 0 NEAR actually settled",
+            "runsChecked": 154,
+            "runsExercised": 16,
+            "violation": "guard records 3 NEAR spent in window 1 but 0 NEAR actually settled",
             "repro": {
               "steps": [
                 "wait 2 window(s) + 0 block(s) (120 blocks)",
-                "agent pay(alice.test.near, 1% of cap)"
+                "agent pay(alice.test.near, remaining budget)"
               ],
               "attackClasses": [
                 "A3",
                 "A4"
               ],
-              "numShrinks": 9,
+              "numShrinks": 14,
               "symbolic": [
                 {
                   "k": "wait",
@@ -397,8 +391,8 @@
                     "i": 0
                   },
                   "amount": {
-                    "kind": "pct",
-                    "pct": 1
+                    "kind": "remaining",
+                    "d": 0
                   }
                 }
               ]
@@ -408,73 +402,109 @@
             "id": "INV-6",
             "title": "The agent isn't locked out silently by gas-allowance exhaustion",
             "status": "broken",
-            "runsChecked": 128,
-            "runsExercised": 14,
+            "runsChecked": 154,
+            "runsExercised": 15,
             "violation": "allowance exhausted and owner re-key failed: Smart contract panicked: re-keying is not supported",
             "repro": {
               "steps": [
-                "drain allowance with 18 cheap agent calls",
-                "agent pay(alice.test.near.attacker.test.near, cap)",
-                "agent pay(alice.test.near, 1% of cap)",
-                "agent pay(alice.test.near, 1% of cap)"
+                "drain allowance with 14 cheap agent calls",
+                "agent pay(ALICE.test.near, cap-1y)",
+                "same-block burst of 5 pays: alice.test.near:1% of cap, alice.test.near:cap, alice.test.near:free, alice.test.near:1% of cap, alice.test.near:remaining budget",
+                "agent calls extra method #0 with a fresh key"
               ],
               "attackClasses": [
-                "A3",
                 "A5",
+                "A6",
                 "A7"
               ],
-              "numShrinks": 12,
+              "numShrinks": 15,
               "symbolic": [
                 {
                   "k": "drain",
-                  "n": 18
+                  "n": 14
                 },
                 {
                   "k": "pay",
                   "to": {
-                    "kind": "lookalike",
+                    "kind": "invalid",
                     "i": 0
                   },
                   "amount": {
-                    "kind": "cap"
+                    "kind": "capMinus",
+                    "d": 1
                   }
                 },
                 {
-                  "k": "pay",
-                  "to": {
-                    "kind": "allowed",
-                    "i": 0
-                  },
-                  "amount": {
-                    "kind": "pct",
-                    "pct": 1
-                  }
+                  "k": "burst",
+                  "pays": [
+                    {
+                      "to": {
+                        "kind": "allowed",
+                        "i": 0
+                      },
+                      "amount": {
+                        "kind": "pct",
+                        "pct": 1
+                      }
+                    },
+                    {
+                      "to": {
+                        "kind": "allowed",
+                        "i": 0
+                      },
+                      "amount": {
+                        "kind": "cap"
+                      }
+                    },
+                    {
+                      "to": {
+                        "kind": "allowed",
+                        "i": 0
+                      },
+                      "amount": {
+                        "kind": "free"
+                      }
+                    },
+                    {
+                      "to": {
+                        "kind": "allowed",
+                        "i": 0
+                      },
+                      "amount": {
+                        "kind": "pct",
+                        "pct": 1
+                      }
+                    },
+                    {
+                      "to": {
+                        "kind": "allowed",
+                        "i": 0
+                      },
+                      "amount": {
+                        "kind": "remaining",
+                        "d": 0
+                      }
+                    }
+                  ]
                 },
                 {
-                  "k": "pay",
-                  "to": {
-                    "kind": "allowed",
-                    "i": 0
-                  },
-                  "amount": {
-                    "kind": "pct",
-                    "pct": 1
-                  }
+                  "k": "extra",
+                  "i": 0
                 }
               ]
             }
           }
         ],
         "attacks": {
-          "sequences": 128,
-          "steps": 538,
+          "sequences": 154,
+          "steps": 832,
           "byClass": {
-            "A3": 154,
-            "A4": 103,
-            "A5": 85,
-            "A6": 40,
-            "A7": 129,
-            "owner": 27
+            "A3": 36,
+            "A4": 153,
+            "A5": 153,
+            "A6": 218,
+            "A7": 235,
+            "owner": 37
           }
         },
         "prompt": {
@@ -654,33 +684,32 @@
       }
     ]
   },
-  "sha256": "827fed191f1ae1625885237e46f309b752f6783126760bfcf97e69a26bc54c2b",
-  "runId": "af-42-827fed191f1a",
+  "sha256": "d7eb148fec6d5f81a640766cc47eac0f97d9a0a2ff1f228741a570dc3a08971f",
+  "runId": "af-42-d7eb148fec6d",
   "meta": {
-    "generatedAt": "2026-11-09T18:58:32.724Z",
-    "commit": "879b5908efcb",
-    "durationMs": 2542,
+    "generatedAt": "2026-11-11T09:55:05.395Z",
+    "commit": "b68f65646b1f",
+    "durationMs": 16772,
     "nodeVersion": "v24.14.1"
   },
   "anchors": [
     {
       "network": "testnet",
       "contractId": "scoreboard.agentfuzz-28213.testnet",
-      "runId": "af-42-827fed191f1a",
-      "sha256": "827fed191f1ae1625885237e46f309b752f6783126760bfcf97e69a26bc54c2b",
-      "txHash": "CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG",
-      "explorerUrl": "https://testnet.nearblocks.io/txns/CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG",
-      "recordedAt": "2026-11-09T18:51:31.155Z",
-      "note": "already anchored on testnet (immutable)"
+      "runId": "af-42-d7eb148fec6d",
+      "sha256": "d7eb148fec6d5f81a640766cc47eac0f97d9a0a2ff1f228741a570dc3a08971f",
+      "txHash": "3KBeqcSNmrh8nEuMFknvnTs2C53pWJiBj9z4rL3UcULb",
+      "explorerUrl": "https://testnet.nearblocks.io/txns/3KBeqcSNmrh8nEuMFknvnTs2C53pWJiBj9z4rL3UcULb",
+      "recordedAt": "2026-11-11T09:55:09.984Z"
     },
     {
       "network": "nearsim",
       "contractId": "scoreboard.test.near",
-      "runId": "af-42-827fed191f1a",
-      "sha256": "827fed191f1ae1625885237e46f309b752f6783126760bfcf97e69a26bc54c2b",
-      "txHash": "tx_a62b2cbc4a72c1e99c8e17e6",
+      "runId": "af-42-d7eb148fec6d",
+      "sha256": "d7eb148fec6d5f81a640766cc47eac0f97d9a0a2ff1f228741a570dc3a08971f",
+      "txHash": "tx_ba849efa7f7d906216c48fee",
       "blockHeight": "3",
-      "recordedAt": "2026-11-09T18:58:33.107Z",
+      "recordedAt": "2026-11-11T09:55:10.017Z",
       "note": "offline proof: scoreboard.wasm executed in nearsim; use --anchor testnet to publish"
     }
   ]

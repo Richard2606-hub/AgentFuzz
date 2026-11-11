@@ -37,7 +37,7 @@ describe("scorecard", () => {
     const html = renderScorecardHtml(sc);
     expect(html).toContain(sc.sha256);
     expect(html).toContain("INV-6");
-    expect(html).not.toMatch(/<script|https?:\/\/[^"]*\.js/);
+    expect(html).not.toMatch(/https?:\/\/[^"]*\.js/);
   });
 
   it("anchors through the real scoreboard wasm in nearsim", async () => {

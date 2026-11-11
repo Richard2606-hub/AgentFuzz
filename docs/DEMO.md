@@ -29,9 +29,9 @@ can't be edited afterwards.
 ## Live Testnet Evidence (for submission fields & demo)
 
 * **Scoreboard Contract**: `scoreboard.agentfuzz-28213.testnet` ([NearBlocks](https://testnet.nearblocks.io/address/scoreboard.agentfuzz-28213.testnet))
-* **Anchored Run ID**: `af-42-827fed191f1a`
-* **Scorecard SHA-256**: `827fed191f1ae1625885237e46f309b752f6783126760bfcf97e69a26bc54c2b`
-* **Anchor Transaction**: `CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG` ([NearBlocks Tx](https://testnet.nearblocks.io/txns/CsgqzY2CNwNDw7wSMx3B5C3QzN9kDRdxrvdGBY8A7UHG))
+* **Anchored Run ID**: `af-42-d7eb148fec6d`
+* **Scorecard SHA-256**: `d7eb148fec6d5f81a640766cc47eac0f97d9a0a2ff1f228741a570dc3a08971f`
+* **Anchor Transaction**: `3KBeqcSNmrh8nEuMFknvnTs2C53pWJiBj9z4rL3UcULb` ([NearBlocks Tx](https://testnet.nearblocks.io/txns/3KBeqcSNmrh8nEuMFknvnTs2C53pWJiBj9z4rL3UcULb))
 * **Verification Command**: `agentfuzz verify web/scorecard.json`
 
 ## Submission checklist
