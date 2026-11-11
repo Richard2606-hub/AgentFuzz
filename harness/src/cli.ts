@@ -18,7 +18,7 @@ import { loadDotEnv } from "./util/dotenv.js";
 import { c, statusBadge } from "./util/term.js";
 import { runMatrix } from "./matrix.js";
 import { loadCorpus, makePlanner, runPromptCampaign, type PromptCampaign, type PromptResult } from "./prompt-runner.js";
-import { cmdAnchor, cmdDemoOffline, cmdReport, cmdScoreboardDeploy, cmdVerify } from "./cli-report.js";
+import { cmdAnchor, cmdDemoOffline, cmdRenderWeb, cmdReport, cmdScoreboardDeploy, cmdVerify } from "./cli-report.js";
 import { sandboxBackendFactory, differential } from "./differential.js";
 import { openaiChatClient } from "./agent/openai-client.js";
 import { llmConfigFromEnv, pickModel } from "./agent/planners.js";
@@ -277,6 +277,7 @@ function help() {
   agentfuzz report                          fuzz + prompt every target, write scorecard JSON/HTML, anchor hash
                                             [--targets reference,naive] [--anchor auto|nearsim|testnet|local|none]
   agentfuzz verify [scorecard.json]         recompute body hash, re-run deterministically, check on-chain anchor
+  agentfuzz render-web [scorecard.json]     rebuild web/index.html from a scorecard (no re-run, no anchoring)
   agentfuzz anchor [scorecard.json]         anchor an existing scorecard  [--network nearsim|testnet]
   agentfuzz scoreboard-deploy               deploy artifacts/scoreboard.wasm to testnet (needs .env credentials)
   agentfuzz demo-offline                    the full demo: no API keys, no network
@@ -310,6 +311,8 @@ async function main() {
       return cmdReport(flags, outDir(flags));
     case "verify":
       return cmdVerify(positional, flags);
+    case "render-web":
+      return cmdRenderWeb(positional, flags);
     case "anchor":
       return cmdAnchor(positional, flags, outDir(flags));
     case "scoreboard-deploy":

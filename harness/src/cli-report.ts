@@ -1,6 +1,7 @@
 /**
- * Report-related CLI commands: report, verify, anchor, scoreboard-deploy, demo-offline.
+ * Report-related CLI commands: report, verify, render-web, anchor, scoreboard-deploy, demo-offline.
  */
+import { writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { anchorNearsim, anchorTestnet, deployScoreboardTestnet, testnetConfigFromEnv } from "./anchor/anchor.js";
 import { loadCorpus, makePlanner, runPromptCampaign } from "./prompt-runner.js";
@@ -8,7 +9,8 @@ import { parseGenerator } from "./generators/contract.js";
 import { buildScorecard, targetScore } from "./report/scorecard.js";
 import { corpusSha256, generateReport, makeSettings, loadScorecard, verifyScorecard, writeScorecard, type AnchorMode } from "./report.js";
 import { runCampaign } from "./runner.js";
-import { loadTarget } from "./targets/registry.js";
+import { loadTarget, REPO_ROOT } from "./targets/registry.js";
+import { renderScorecardHtml } from "./report/html.js";
 import { c } from "./util/term.js";
 
 type Flags = Record<string, string | boolean>;
@@ -49,6 +51,15 @@ function printScorecardSummary(sc: ReturnType<typeof buildScorecard>, files: str
   for (const a of sc.anchors)
     console.log(`  anchor   ${a.network}${a.contractId ? ` ${a.contractId}` : ""}${a.txHash ? ` tx ${a.txHash}` : ""}${a.explorerUrl ? `\n           ${a.explorerUrl}` : ""}`);
   for (const f of files) console.log(`  ${c.dim("wrote")}    ${rel(f)}`);
+}
+
+/** Rebuild web/index.html from a scorecard without re-running or re-anchoring it (used by `make web`). */
+export function cmdRenderWeb(positional: string[], flags: Flags): number {
+  const file = positional[0] ?? join(REPO_ROOT, "web", "scorecard.json");
+  const out = typeof flags.out === "string" ? flags.out : join(REPO_ROOT, "web", "index.html");
+  writeFileSync(out, renderScorecardHtml(loadScorecard(file)));
+  console.log(`  wrote ${relative(process.cwd(), out)} from ${relative(process.cwd(), file)}`);
+  return 0;
 }
 
 export async function cmdVerify(positional: string[], flags: Flags): Promise<number> {

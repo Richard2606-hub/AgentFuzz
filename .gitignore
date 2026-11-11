@@ -24,3 +24,9 @@ Thumbs.db
 /AgentFuzz-NEAR-Hackathon-Proposal.pdf
 /NEAR Protocol Hackathon Overview.md
 /NEAR Protocol Hackathon Overview.pdf
+
+# Built by scripts/build-web.mjs (make web); GitHub Pages builds them in CI
+web/playground.js
+web/playground-worker.js
+web/corpus.json
+web/wasm/
