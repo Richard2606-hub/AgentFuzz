@@ -1,12 +1,15 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { anchorNearsim } from "../src/anchor/anchor.js";
+import { codeHashToHex, NO_CODE_HASH, verdictOf, type GuardAudit } from "../src/anchor/audit-lookup.js";
 import { renderScorecardHtml } from "../src/report/html.js";
 import { buildScorecard, hashBody, targetScore, type ScorecardSettings } from "../src/report/scorecard.js";
 import { CompromisedPlanner } from "../src/agent/planners.js";
 import { loadCorpus, runPromptCampaign } from "../src/prompt-runner.js";
 import { runCampaign } from "../src/runner.js";
-import { loadTarget } from "../src/targets/registry.js";
-import { base58Decode, base58Encode, deriveKeyPair, ed25519Verify, fmtNear, isValidAccountId, near } from "../src/near/keys.js";
+import { loadTarget, REPO_ROOT } from "../src/targets/registry.js";
+import { base58Decode, base58Encode, deriveKeyPair, ed25519Verify, fmtNear, isValidAccountId, near, sha256, sha256Hex } from "../src/near/keys.js";
 import { canonicalJSON } from "../src/util/json.js";
 
 async function scorecard(seed = 9) {
@@ -46,6 +49,45 @@ describe("scorecard", () => {
     expect(a.network).toBe("nearsim");
     expect(a.sha256).toBe(sc.sha256);
     expect(a.txHash).toMatch(/^tx_/);
+    // One audit per guard build, keyed by its wasm SHA-256 (= the code hash NEAR reports).
+    expect(a.auditTxHash).toMatch(/^tx_/);
+    expect(a.audits?.map((x) => [x.target, x.codeHash])).toEqual(sc.body.targets.map((t) => [t.name, t.wasmSha256]));
+    for (const t of sc.body.targets) {
+      const x = a.audits!.find((y) => y.target === t.name)!;
+      expect([x.held, x.broken, x.total, x.promptBreaches]).toEqual([t.summary.held, t.summary.broken, t.summary.total, t.summary.promptBreaches]);
+    }
+    expect(a.audits!.find((x) => x.target === "reference")!.broken).toBe(0);
+    expect(a.audits!.find((x) => x.target === "naive")!.broken).toBeGreaterThan(0);
+  });
+});
+
+describe("guard audit lookup", () => {
+  const audit = (over: Partial<GuardAudit>): GuardAudit => ({
+    code_hash: "ab".repeat(32), target: "t", held: 6, broken: 0, total: 6, broken_invariants: [], prompt_breaches: 0,
+    run_id: "af-1", report_sha256: "cd".repeat(32), submitter: "agentfuzz.testnet", block_height: "1", timestamp_ns: "1", ...over,
+  });
+
+  it("NEAR's base58 code hash is the wasm SHA-256", () => {
+    const wasm = new Uint8Array(readFileSync(join(REPO_ROOT, "artifacts", "guard_reference.wasm")));
+    expect(codeHashToHex(base58Encode(sha256(wasm)))).toBe(sha256Hex(wasm));
+  });
+
+  it("the latest audit decides; breaks and prompt breaches make it unsafe", () => {
+    const h = "ab".repeat(32);
+    expect(verdictOf(h, []).verdict).toBe("not-audited");
+    expect(verdictOf(NO_CODE_HASH, []).verdict).toBe("no-contract");
+    expect(verdictOf(h, [audit({})]).verdict).toBe("clean");
+    expect(verdictOf(h, [audit({}), audit({ held: 5, broken: 1, broken_invariants: ["INV-1"], run_id: "af-2" })]).verdict).toBe("broken");
+    expect(verdictOf(h, [audit({ prompt_breaches: 1 })]).verdict).toBe("broken");
+    // nothing broke, but one invariant was never exercised: not a pass, not a break
+    expect(verdictOf(h, [audit({ held: 5 })]).verdict).toBe("incomplete");
+  });
+
+  it("only counts audits from trusted submitters when asked to", () => {
+    const h = "ab".repeat(32);
+    const list = [audit({ submitter: "someone.testnet", held: 0, broken: 6, broken_invariants: ["INV-1", "INV-2", "INV-3", "INV-4", "INV-5", "INV-6"] })];
+    expect(verdictOf(h, list).verdict).toBe("broken");
+    expect(verdictOf(h, list, ["agentfuzz.testnet"]).verdict).toBe("not-audited");
   });
 });
 

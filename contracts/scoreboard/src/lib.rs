@@ -7,20 +7,73 @@
 //!
 //! Storage is paid by the caller: `record` requires an attached deposit that covers the
 //! bytes it adds, and refunds the excess.
+//!
+//! ## Guard audits (agent economy)
+//!
+//! After anchoring a report, its submitter can attach one audit per tested guard build with
+//! `record_audits`: the guard wasm's SHA-256 (NEAR's account `code_hash`, base58-decoded), how
+//! many invariants held and broke, and how many prompt attacks breached it. Anyone about to trust
+//! an agent's wallet reads that account's `code_hash` (RPC `view_account`) and calls
+//! `audit_of(code_hash)`. Audits are append-only and each points at a report anyone can re-run
+//! with `agentfuzz verify`; consumers decide which submitters they trust.
+//!
+//! Audits live under their own storage prefix, outside the root state, so a deployed
+//! scoreboard can be upgraded to this version in place without a migration.
 
 use near_sdk::json_types::U64;
-use near_sdk::store::{IterableMap, Vector};
+use near_sdk::store::{IterableMap, LookupMap, Vector};
 use near_sdk::{env, near, require, AccountId, BorshStorageKey, NearToken, PanicOnDefault, Promise};
 
 pub const MAX_RUN_ID_LEN: usize = 128;
 pub const MAX_TARGET_LEN: usize = 128;
 pub const MAX_COMMIT_LEN: usize = 128;
+pub const MAX_AUDITS_PER_CALL: usize = 16;
+pub const MAX_INVARIANTS: u8 = 32;
 
 #[derive(BorshStorageKey)]
 #[near]
 enum StorageKey {
     Records,
     Order,
+    // Added with guard audits. Not referenced from the root state (see module docs).
+    Audits,
+}
+
+/// One tested guard build, as submitted.
+#[near(serializers = [json])]
+#[derive(Clone, Debug)]
+pub struct AuditInput {
+    /// SHA-256 of the guard wasm, 64 lowercase hex characters.
+    pub code_hash: String,
+    pub target: String,
+    pub held: u8,
+    pub broken: u8,
+    pub total: u8,
+    /// e.g. ["INV-1", "INV-5"]
+    pub broken_invariants: Vec<String>,
+    pub prompt_breaches: u32,
+}
+
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Audit {
+    pub code_hash: String,
+    pub target: String,
+    pub held: u8,
+    pub broken: u8,
+    pub total: u8,
+    pub broken_invariants: Vec<String>,
+    pub prompt_breaches: u32,
+    pub run_id: String,
+    /// SHA-256 of the anchored report this audit comes from.
+    pub report_sha256: String,
+    pub submitter: AccountId,
+    pub block_height: U64,
+    pub timestamp_ns: U64,
+}
+
+fn audits() -> LookupMap<String, Vec<Audit>> {
+    LookupMap::new(StorageKey::Audits)
 }
 
 #[near(serializers = [borsh, json])]
@@ -112,6 +165,77 @@ impl Scoreboard {
             .filter_map(|id| self.records.get(id).cloned())
             .collect()
     }
+
+    /// Attach guard audits to an anchored report. Only the report's submitter may do this, once
+    /// per (report, code_hash). The caller pays for the storage it adds.
+    #[payable]
+    pub fn record_audits(&mut self, run_id: String, audits_in: Vec<AuditInput>) -> Vec<Audit> {
+        let rec = self.records.get(&run_id).cloned().unwrap_or_else(|| env::panic_str("run_id not recorded"));
+        require!(env::predecessor_account_id() == rec.submitter, "only the report's submitter can attach audits");
+        require!(!audits_in.is_empty() && audits_in.len() <= MAX_AUDITS_PER_CALL, "1..=16 audits per call");
+
+        let before = env::storage_usage();
+        let mut map = audits();
+        let mut out = Vec::with_capacity(audits_in.len());
+        for a in audits_in {
+            require!(is_sha256_hex(&a.code_hash), "code_hash must be 64 lowercase hex characters");
+            require!(!a.target.is_empty() && a.target.len() <= MAX_TARGET_LEN, "target length must be 1..=128");
+            require!(a.total > 0 && a.total <= MAX_INVARIANTS, "total must be 1..=32");
+            require!(a.held as u16 + a.broken as u16 <= a.total as u16, "held + broken must not exceed total");
+            require!(a.broken_invariants.len() == a.broken as usize, "broken_invariants must list every broken invariant");
+            require!(a.broken_invariants.iter().all(|i| !i.is_empty() && i.len() <= 16), "invariant ids must be 1..=16 characters");
+            let audit = Audit {
+                code_hash: a.code_hash.clone(),
+                target: a.target,
+                held: a.held,
+                broken: a.broken,
+                total: a.total,
+                broken_invariants: a.broken_invariants,
+                prompt_breaches: a.prompt_breaches,
+                run_id: run_id.clone(),
+                report_sha256: rec.sha256.clone(),
+                submitter: rec.submitter.clone(),
+                block_height: U64(env::block_height()),
+                timestamp_ns: U64(env::block_timestamp()),
+            };
+            let mut list = map.get(&a.code_hash).cloned().unwrap_or_default();
+            require!(!list.iter().any(|x| x.run_id == run_id), "this report already has an audit for that code_hash");
+            list.push(audit.clone());
+            map.insert(a.code_hash, list);
+            out.push(audit);
+        }
+        map.flush();
+        charge_storage(before);
+        for a in &out {
+            env::log_str(&format!(
+                r#"EVENT_JSON:{{"standard":"agentfuzz_scoreboard","version":"1.1.0","event":"audit","data":[{{"run_id":"{}","code_hash":"{}","held":{},"broken":{},"total":{}}}]}}"#,
+                a.run_id, a.code_hash, a.held, a.broken, a.total
+            ));
+        }
+        out
+    }
+
+    /// The most recent audit of a guard build (wasm SHA-256, hex), if any.
+    pub fn audit_of(&self, code_hash: String) -> Option<Audit> {
+        audits().get(&code_hash).and_then(|l| l.last().cloned())
+    }
+
+    /// Every audit of a guard build, oldest first.
+    pub fn audits_of(&self, code_hash: String) -> Vec<Audit> {
+        audits().get(&code_hash).cloned().unwrap_or_default()
+    }
+}
+
+/// Require the attached deposit to cover the storage added since `before`; refund the rest.
+fn charge_storage(before: u64) {
+    let added = env::storage_usage().saturating_sub(before) as u128;
+    let cost = env::storage_byte_cost().as_yoctonear().saturating_mul(added);
+    let deposit = env::attached_deposit().as_yoctonear();
+    require!(deposit >= cost, format!("attach at least {} yoctoNEAR to cover storage", cost));
+    let refund = deposit - cost;
+    if refund > 0 {
+        Promise::new(env::predecessor_account_id()).transfer(NearToken::from_yoctonear(refund)).detach();
+    }
 }
 
 fn is_sha256_hex(s: &str) -> bool {
@@ -178,5 +302,86 @@ mod tests {
         }
         let page = c.list(Some(U64(2)), Some(U64(2)));
         assert_eq!(page.iter().map(|r| r.run_id.as_str()).collect::<Vec<_>>(), vec!["run-2", "run-3"]);
+    }
+
+    const CODE: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    fn audit(held: u8, broken: &[&str]) -> AuditInput {
+        AuditInput {
+            code_hash: CODE.into(),
+            target: "reference".into(),
+            held,
+            broken: broken.len() as u8,
+            total: 6,
+            broken_invariants: broken.iter().map(|s| s.to_string()).collect(),
+            prompt_breaches: 0,
+        }
+    }
+
+    #[test]
+    fn audits_are_looked_up_by_code_hash() {
+        ctx(NearToken::from_millinear(500));
+        let mut c = Scoreboard::new();
+        assert_eq!(c.audit_of(CODE.into()), None);
+        c.record("run-1".into(), H.into(), "reference".into(), "c".into());
+        c.record_audits("run-1".into(), vec![audit(6, &[])]);
+        c.record("run-2".into(), H.into(), "reference".into(), "c".into());
+        c.record_audits("run-2".into(), vec![audit(5, &["INV-5"])]);
+        let latest = c.audit_of(CODE.into()).unwrap();
+        assert_eq!((latest.run_id.as_str(), latest.held, latest.broken), ("run-2", 5, 1));
+        assert_eq!(latest.report_sha256, H);
+        assert_eq!(latest.submitter, accounts(1));
+        assert_eq!(c.audits_of(CODE.into()).len(), 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "only the report's submitter can attach audits")]
+    fn only_the_submitter_can_audit() {
+        ctx(NearToken::from_millinear(500));
+        let mut c = Scoreboard::new();
+        c.record("run-1".into(), H.into(), "t".into(), "c".into());
+        testing_env!(VMContextBuilder::new()
+            .predecessor_account_id(accounts(2))
+            .attached_deposit(NearToken::from_millinear(100))
+            .build());
+        c.record_audits("run-1".into(), vec![audit(6, &[])]);
+    }
+
+    #[test]
+    #[should_panic(expected = "run_id not recorded")]
+    fn audits_need_an_anchored_report() {
+        ctx(NearToken::from_millinear(500));
+        let mut c = Scoreboard::new();
+        c.record_audits("nope".into(), vec![audit(6, &[])]);
+    }
+
+    #[test]
+    #[should_panic(expected = "this report already has an audit for that code_hash")]
+    fn one_audit_per_report_and_code_hash() {
+        ctx(NearToken::from_millinear(500));
+        let mut c = Scoreboard::new();
+        c.record("run-1".into(), H.into(), "t".into(), "c".into());
+        c.record_audits("run-1".into(), vec![audit(6, &[]), audit(6, &[])]);
+    }
+
+    #[test]
+    #[should_panic(expected = "broken_invariants must list every broken invariant")]
+    fn audit_counts_must_be_consistent() {
+        ctx(NearToken::from_millinear(500));
+        let mut c = Scoreboard::new();
+        c.record("run-1".into(), H.into(), "t".into(), "c".into());
+        let mut a = audit(5, &[]);
+        a.broken = 1;
+        c.record_audits("run-1".into(), vec![a]);
+    }
+
+    #[test]
+    #[should_panic(expected = "to cover storage")]
+    fn audits_pay_for_storage() {
+        ctx(NearToken::from_millinear(500));
+        let mut c = Scoreboard::new();
+        c.record("run-1".into(), H.into(), "t".into(), "c".into());
+        testing_env!(VMContextBuilder::new().predecessor_account_id(accounts(1)).attached_deposit(NearToken::from_yoctonear(0)).build());
+        c.record_audits("run-1".into(), vec![audit(6, &[])]);
     }
 }

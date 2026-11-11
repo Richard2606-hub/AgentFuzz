@@ -1,9 +1,9 @@
 /**
- * Report-related CLI commands: report, verify, render-web, anchor, scoreboard-deploy, demo-offline.
+ * Report-related CLI commands: report, verify, check, render-web, anchor, scoreboard-deploy, demo-offline.
  */
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { anchorNearsim, anchorTestnet, deployScoreboardTestnet, testnetConfigFromEnv } from "./anchor/anchor.js";
+import { anchorNearsim, anchorTestnet, deployDemoGuardsTestnet, deployScoreboardTestnet, testnetConfigFromEnv } from "./anchor/anchor.js";
 import { loadCorpus, makePlanner, runPromptCampaign } from "./prompt-runner.js";
 import { parseGenerator } from "./generators/contract.js";
 import { buildScorecard, targetScore } from "./report/scorecard.js";
@@ -11,6 +11,8 @@ import { corpusSha256, generateReport, makeSettings, loadScorecard, verifyScorec
 import { runCampaign } from "./runner.js";
 import { loadTarget, REPO_ROOT } from "./targets/registry.js";
 import { renderScorecardHtml } from "./report/html.js";
+import { checkGuard, PUBLISHED_SCOREBOARD, TESTNET_RPC, type CheckResult } from "./anchor/audit-lookup.js";
+import { sha256Hex } from "./near/keys.js";
 import { c } from "./util/term.js";
 
 type Flags = Record<string, string | boolean>;
@@ -51,6 +53,52 @@ function printScorecardSummary(sc: ReturnType<typeof buildScorecard>, files: str
   for (const a of sc.anchors)
     console.log(`  anchor   ${a.network}${a.contractId ? ` ${a.contractId}` : ""}${a.txHash ? ` tx ${a.txHash}` : ""}${a.explorerUrl ? `\n           ${a.explorerUrl}` : ""}`);
   for (const f of files) console.log(`  ${c.dim("wrote")}    ${rel(f)}`);
+}
+
+/** Exit codes of `agentfuzz check`, so an agent or CI step can refuse to trust a guard. */
+export const CHECK_EXIT: Record<CheckResult["verdict"], number> = { clean: 0, broken: 2, "not-audited": 3, "no-contract": 4, incomplete: 5 };
+
+/**
+ * agentfuzz check <account.testnet | code-hash-hex | guard.wasm>
+ * Is this guard build audited on the scoreboard, and did it hold? Reads testnet; signs nothing.
+ */
+export async function cmdCheck(positional: string[], flags: Flags): Promise<number> {
+  const ref = positional[0];
+  if (!ref) throw new Error("usage: agentfuzz check <account-id | code-hash | guard.wasm> [--scoreboard id] [--trust a.testnet,b.testnet] [--json]");
+  const scoreboard = str(flags, "scoreboard", process.env.SCOREBOARD_CONTRACT_ID ?? PUBLISHED_SCOREBOARD);
+  const rpcUrl = str(flags, "rpc", process.env.NEAR_RPC_URL ?? TESTNET_RPC);
+  const trustedSubmitters = typeof flags.trust === "string" ? flags.trust.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+  const target = /^[0-9a-f]{64}$/.test(ref)
+    ? { codeHash: ref }
+    : ref.endsWith(".wasm")
+      ? { codeHash: sha256Hex(new Uint8Array(readFileSync(ref))) }
+      : { accountId: ref };
+  const r = await checkGuard(target, { scoreboard, rpcUrl, trustedSubmitters });
+  if (flags.json) {
+    process.stdout.write(JSON.stringify(r, null, 2) + "\n");
+    return CHECK_EXIT[r.verdict];
+  }
+  console.log(`${c.bold("AgentFuzz check")} ${c.dim("·")} ${ref} ${c.dim(`· scoreboard ${scoreboard}`)}`);
+  console.log(`  code hash  ${r.codeHash}  ${c.dim("(SHA-256 of the guard wasm)")}`);
+  const a = r.latest;
+  if (r.verdict === "no-contract") console.log(c.yellow("  ! no contract deployed on this account"));
+  else if (r.verdict === "not-audited")
+    console.log(c.yellow(`  ! not audited${trustedSubmitters ? ` by ${trustedSubmitters.join(", ")}` : ""}: no AgentFuzz report covers this exact build`));
+  else if (a) {
+    const head =
+      r.verdict === "clean"
+        ? c.green(`  ✓ audited: ${a.held}/${a.total} invariants held, ${a.prompt_breaches} prompt-layer breaches`)
+        : r.verdict === "incomplete"
+          ? c.yellow(`  ~ audited: nothing broke, but only ${a.held}/${a.total} invariants were exercised`)
+          : c.red(`  ✗ audited: ${a.broken}/${a.total} invariants broken${a.broken_invariants.length ? ` (${a.broken_invariants.join(", ")})` : ""}, ${a.prompt_breaches} prompt-layer breaches`);
+    console.log(head);
+    console.log(c.dim(`    report ${a.run_id} (sha256 ${a.report_sha256.slice(0, 16)}…) as ${a.target}, submitted by ${a.submitter} at block ${a.block_height}`));
+    if (r.audits.length > 1) console.log(c.dim(`    ${r.audits.length} audits of this build on record; showing the latest`));
+  }
+  const verdict = { clean: "safe to trust with a budget, per this audit", broken: "do not trust this guard with funds", incomplete: "not fully tested: run a longer campaign", "not-audited": "unknown: audit it first (agentfuzz fuzz --target guard.wasm)", "no-contract": "nothing to trust" }[r.verdict];
+  console.log(`  verdict: ${verdict}`);
+  console.log(c.dim("  Audits are claims by their submitter; each names a report you can re-run with agentfuzz verify."));
+  return CHECK_EXIT[r.verdict];
 }
 
 /** Rebuild web/index.html from a scorecard without re-running or re-anchoring it (used by `make web`). */
@@ -98,6 +146,15 @@ export async function cmdScoreboardDeploy(): Promise<number> {
   if (!cfg) throw new Error("set NEAR_ACCOUNT_ID, NEAR_PRIVATE_KEY and SCOREBOARD_CONTRACT_ID (see .env.example)");
   const id = await deployScoreboardTestnet(cfg, (s) => console.log(`  ${s}`));
   console.log(c.green(`  scoreboard ready at ${id}`));
+  return 0;
+}
+
+export async function cmdDemoGuardsDeploy(): Promise<number> {
+  const cfg = testnetConfigFromEnv();
+  if (!cfg) throw new Error("set NEAR_ACCOUNT_ID and NEAR_PRIVATE_KEY (see .env.example)");
+  const ids = await deployDemoGuardsTestnet(cfg, (s) => console.log(`  ${s}`));
+  console.log(c.green(`  demo guards: ${ids.join(", ")}`));
+  console.log(c.dim(`  check them: agentfuzz check ${ids[0]}`));
   return 0;
 }
 

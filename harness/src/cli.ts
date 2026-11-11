@@ -18,7 +18,7 @@ import { loadDotEnv } from "./util/dotenv.js";
 import { c, statusBadge } from "./util/term.js";
 import { runMatrix } from "./matrix.js";
 import { loadCorpus, makePlanner, runPromptCampaign, type PromptCampaign, type PromptResult } from "./prompt-runner.js";
-import { cmdAnchor, cmdDemoOffline, cmdRenderWeb, cmdReport, cmdScoreboardDeploy, cmdVerify } from "./cli-report.js";
+import { cmdAnchor, cmdCheck, cmdDemoGuardsDeploy, cmdDemoOffline, cmdRenderWeb, cmdReport, cmdScoreboardDeploy, cmdVerify } from "./cli-report.js";
 import { sandboxBackendFactory, differential } from "./differential.js";
 import { openaiChatClient } from "./agent/openai-client.js";
 import { llmConfigFromEnv, pickModel } from "./agent/planners.js";
@@ -277,9 +277,12 @@ function help() {
   agentfuzz report                          fuzz + prompt every target, write scorecard JSON/HTML, anchor hash
                                             [--targets reference,naive] [--anchor auto|nearsim|testnet|local|none]
   agentfuzz verify [scorecard.json]         recompute body hash, re-run deterministically, check on-chain anchor
+  agentfuzz check <account | code-hash | guard.wasm>  is this guard build audited on the testnet scoreboard?
+                                            exit 0 clean, 2 broken, 3 not audited, 4 no contract, 5 incomplete [--trust a.testnet] [--json]
   agentfuzz render-web [scorecard.json]     rebuild web/index.html from a scorecard (no re-run, no anchoring)
   agentfuzz anchor [scorecard.json]         anchor an existing scorecard  [--network nearsim|testnet]
-  agentfuzz scoreboard-deploy               deploy artifacts/scoreboard.wasm to testnet (needs .env credentials)
+  agentfuzz scoreboard-deploy               deploy or upgrade artifacts/scoreboard.wasm on testnet (needs .env credentials)
+  agentfuzz demo-guards-deploy              deploy the reference and naive guards to testnet for agentfuzz check
   agentfuzz demo-offline                    the full demo: no API keys, no network
   agentfuzz corpus list                     show the prompt-layer corpus
   agentfuzz corpus generate --class A1 --n 8  write new attacks with NEAR AI Cloud (validated, de-duplicated)
@@ -313,8 +316,12 @@ async function main() {
       return cmdVerify(positional, flags);
     case "render-web":
       return cmdRenderWeb(positional, flags);
+    case "check":
+      return cmdCheck(positional, flags);
     case "anchor":
       return cmdAnchor(positional, flags, outDir(flags));
+    case "demo-guards-deploy":
+      return cmdDemoGuardsDeploy();
     case "scoreboard-deploy":
       return cmdScoreboardDeploy();
     case "corpus":

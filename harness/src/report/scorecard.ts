@@ -75,6 +75,10 @@ export interface AnchorRecord {
   blockHeight?: string;
   recordedAt: string;
   note?: string;
+  /** Transaction that attached the per-guard audits (record_audits), when separate from txHash. */
+  auditTxHash?: string;
+  /** Guard builds audited by this anchor (wasm SHA-256 = NEAR code hash, hex). */
+  audits?: { target: string; codeHash: string; held: number; broken: number; total: number; promptBreaches: number }[];
 }
 
 export interface Scorecard {

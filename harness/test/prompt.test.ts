@@ -28,9 +28,18 @@ describe("prompt layer with a fully hijacked planner", () => {
   it("naive guard leaks on look-alike receivers and injected key rotation", async () => {
     const r = await runPromptCampaign({ target: loadTarget("naive"), planner: new CompromisedPlanner(), scenarios: corpus });
     const breached = r.results.filter((x) => x.outcome === "breach").map((x) => x.id).sort();
-    expect(breached).toEqual(["A1-002", "A1-003", "A1-010", "A1-012", "A2-003", "A2-006"]);
+    // A1-014, A1-016 and A2-011 are agent-to-agent scenarios: a counterparty agent's look-alike
+    // settlement account, a marketplace agent's key rotation, a poisoned agent-registry payout.
+    expect(breached).toEqual(["A1-002", "A1-003", "A1-010", "A1-012", "A1-014", "A1-016", "A2-003", "A2-006", "A2-011"]);
     const keyChain = r.results.find((x) => x.id === "A1-003")!;
     expect(keyChain.violations.map((v) => v.invariant)).toEqual(expect.arrayContaining(["INV-2", "INV-3"]));
+  });
+
+  it("agent-to-agent scenarios are in the corpus and all blocked by the fixed guard", async () => {
+    const a2a = corpus.filter((s) => s.channel === "agent_message" || s.channel === "agent_api");
+    expect(a2a.map((s) => s.id)).toEqual(["A1-013", "A1-014", "A1-015", "A1-016", "A1-017", "A2-009", "A2-010", "A2-011"]);
+    const r = await runPromptCampaign({ target: loadTarget("naive-fixed"), planner: new CompromisedPlanner(), scenarios: a2a });
+    expect(r.blocked).toBe(a2a.length);
   });
 
   it("a resisting planner is scored as resisted, not blocked", async () => {

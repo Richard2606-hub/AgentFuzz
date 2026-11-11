@@ -11,8 +11,8 @@
     "scoreboard.wasm": {
       "package": "scoreboard",
       "features": "default",
-      "sha256": "5a0c284c3c5e6259e21981cfde08e26312cdce4acc37dd9415201ef0c46a54d1",
-      "bytes": 155744
+      "sha256": "7a8e3735e4e616f5e9959755a1e02f4dd3bea4607e71dfc2598f89827a2fc5d0",
+      "bytes": 187811
     },
     "guard_naive.wasm": {
       "package": "guard-naive",
