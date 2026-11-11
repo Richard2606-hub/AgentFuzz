@@ -75,10 +75,65 @@ class ActionError extends Error {
   }
 }
 
+/**
+ * Contract storage that can fall back to a remote copy (a fork of a live network). Reads of keys
+ * not held locally go to `loader`; deletions leave a tombstone so a removed key is not re-read.
+ */
+export class LazyStorage extends Map<string, Uint8Array> {
+  private tombs = new Set<string>();
+  constructor(private readonly loader: (hexKey: string) => Uint8Array | undefined) {
+    super();
+  }
+  override get(k: string): Uint8Array | undefined {
+    const v = super.get(k);
+    if (v !== undefined || this.tombs.has(k)) return v;
+    const remote = this.loader(k);
+    if (remote !== undefined) super.set(k, remote);
+    return remote;
+  }
+  override has(k: string): boolean {
+    return this.get(k) !== undefined;
+  }
+  override set(k: string, v: Uint8Array): this {
+    this.tombs?.delete(k);
+    return super.set(k, v);
+  }
+  override delete(k: string): boolean {
+    const existed = this.has(k);
+    super.delete(k);
+    this.tombs.add(k);
+    return existed;
+  }
+  clone(): LazyStorage {
+    const c = new LazyStorage(this.loader);
+    for (const [k, v] of super.entries()) c.set(k, v);
+    for (const t of this.tombs) c.tombs.add(t);
+    return c;
+  }
+}
+
+/** An account as a live network reports it, for forking (see simulate/fork.ts). */
+export interface ForkedAccount {
+  amount: bigint;
+  locked: bigint;
+  /** Total storage usage as the network reports it (code, keys and data). */
+  storageUsage: bigint;
+  code?: Uint8Array;
+  keys: { publicKey: string; nonce: bigint; permission: AccessKeyPermission }[];
+  storage: LazyStorage;
+}
+
+/** Where a forked chain gets accounts it has not seen yet: null = does not exist there either. */
+export interface ForkSource {
+  account(id: string): ForkedAccount | null;
+}
+
 export interface SimChainOptions {
   seed?: string;
   blockTimeNs?: bigint;
   genesisTimestamp?: bigint;
+  /** Fork a live network: accounts not created locally are loaded from here on first use. */
+  fork?: ForkSource;
 }
 
 export class SimChain {
@@ -95,6 +150,9 @@ export class SimChain {
   private idCounter = 0;
   private txFirstTs = new Map<string, bigint>();
   private returnedTo = new Map<string, string>(); // receiptId -> receiptId it promise_returned
+  private readonly fork?: ForkSource;
+  /** Forked accounts deleted locally, so they are not loaded again. */
+  private gone = new Set<string>();
 
   readonly outcomes: ReceiptOutcome[] = [];
   readonly transfers: ValueTransfer[] = [];
@@ -103,6 +161,21 @@ export class SimChain {
     this.seed = opts.seed ?? "nearsim";
     this.blockTimeNs = opts.blockTimeNs ?? DEFAULT_BLOCK_TIME;
     this.timestamp = opts.genesisTimestamp ?? GENESIS_TIMESTAMP;
+    this.fork = opts.fork;
+  }
+
+  /** The account, loading it from the fork source on first use. */
+  private acct(id: string): SimAccount | undefined {
+    const a = this.accounts.get(id);
+    if (a || !this.fork || this.gone.has(id)) return a;
+    const f = this.fork.account(id);
+    if (!f) return undefined;
+    const acc: SimAccount = { id, amount: f.amount, locked: f.locked, storage: f.storage.clone(), dataUsage: 0n, keys: new Map() };
+    for (const k of f.keys) acc.keys.set(k.publicKey, { nonce: k.nonce, permission: clonePermission(k.permission) });
+    if (f.code) acc.code = { hash: codeHash(f.code), bytes: f.code, module: compileModule(f.code) };
+    acc.dataUsage = f.storageUsage - storageUsageWithoutData(acc);
+    this.accounts.set(id, acc);
+    return acc;
   }
 
   // ------------------------------------------------------------------ genesis-style setup
@@ -110,7 +183,7 @@ export class SimChain {
   /** Create an account directly (like genesis / sandbox root creation). */
   createAccount(id: string, amount: bigint, opts: { fullAccessKeys?: string[]; code?: Uint8Array } = {}) {
     if (!isValidAccountId(id)) throw new Error(`invalid account id '${id}'`);
-    if (this.accounts.has(id)) throw new Error(`account '${id}' already exists`);
+    if (this.acct(id)) throw new Error(`account '${id}' already exists`);
     const acc: SimAccount = { id, amount, locked: 0n, storage: new Map(), dataUsage: 0n, keys: new Map() };
     for (const pk of opts.fullAccessKeys ?? []) acc.keys.set(pk, { nonce: 0n, permission: { kind: "FullAccess" } });
     if (opts.code) acc.code = { hash: codeHash(opts.code), bytes: opts.code, module: compileModule(opts.code) };
@@ -118,35 +191,35 @@ export class SimChain {
   }
 
   hasAccount(id: string): boolean {
-    return this.accounts.has(id);
+    return this.acct(id) !== undefined;
   }
 
   // ------------------------------------------------------------------ queries
 
   viewAccount(id: string): { amount: bigint; locked: bigint; storageUsage: bigint; codeHash: string | null } | undefined {
-    const a = this.accounts.get(id);
+    const a = this.acct(id);
     if (!a) return undefined;
     return { amount: a.amount, locked: a.locked, storageUsage: storageUsage(a), codeHash: a.code?.hash ?? null };
   }
 
   balance(id: string): bigint {
-    return this.accounts.get(id)?.amount ?? 0n;
+    return this.acct(id)?.amount ?? 0n;
   }
 
   accessKeys(id: string): AccessKeyView[] {
-    const a = this.accounts.get(id);
+    const a = this.acct(id);
     if (!a) return [];
     return [...a.keys.entries()].map(([publicKey, k]) => ({ publicKey, nonce: k.nonce, permission: clonePermission(k.permission) }));
   }
 
   accessKey(id: string, pk: string): AccessKeyView | undefined {
-    const k = this.accounts.get(id)?.keys.get(pk);
+    const k = this.acct(id)?.keys.get(pk);
     return k ? { publicKey: pk, nonce: k.nonce, permission: clonePermission(k.permission) } : undefined;
   }
 
   /** Read-only contract call. Throws on contract error. */
   view(accountId: string, method: string, args: unknown = {}): unknown {
-    const acc = this.accounts.get(accountId);
+    const acc = this.acct(accountId);
     if (!acc) throw new Error(`account '${accountId}' does not exist`);
     if (!acc.code) throw new Error(`account '${accountId}' has no contract`);
     const res = execute(acc.code.module, acc.code.bytes.length, method, {
@@ -164,7 +237,7 @@ export class SimChain {
       prepaidGas: GAS.maxPrepaid,
       randomSeed: this.randomSeed("view"),
       isView: true,
-      storage: new Map(acc.storage),
+      storage: acc.storage instanceof LazyStorage ? acc.storage.clone() : new Map(acc.storage),
       storageUsage: storageUsage(acc),
       storageByteCost: STORAGE_BYTE_COST,
       promiseResults: [],
@@ -182,7 +255,7 @@ export class SimChain {
     const txHash = this.newId("tx");
     const reject = (kind: TxRejection, message: string): SubmitResult => ({ txHash, rejected: { kind, message } });
 
-    const signer = this.accounts.get(tx.signerId);
+    const signer = this.acct(tx.signerId);
     if (!signer) return reject("SignerDoesNotExist", `signer ${tx.signerId} does not exist`);
     if (!isValidAccountId(tx.receiverId)) return reject("InvalidReceiver", `invalid receiver ${tx.receiverId}`);
     const key = signer.keys.get(tx.publicKey);
@@ -329,7 +402,7 @@ export class SimChain {
       return v === null || v === undefined ? { ok: false } : { ok: true, data: v };
     });
 
-    const existing = this.accounts.get(r.receiverId);
+    const existing = this.acct(r.receiverId);
     const snapshot = existing ? cloneAccount(existing) : undefined;
     let acc = existing;
     let created = false;
@@ -354,12 +427,14 @@ export class SimChain {
               throw new ActionError("CreateAccountNotAllowed", `${r.predecessorId} cannot create ${r.receiverId}`);
             acc = { id: r.receiverId, amount: 0n, locked: 0n, storage: new Map(), dataUsage: 0n, keys: new Map() };
             this.accounts.set(acc.id, acc);
+            this.gone.delete(acc.id);
             created = true;
             continue;
           }
           if (a.type === "Transfer" && isImplicitAccount(r.receiverId)) {
             acc = { id: r.receiverId, amount: 0n, locked: 0n, storage: new Map(), dataUsage: 0n, keys: new Map() };
             this.accounts.set(acc.id, acc);
+            this.gone.delete(acc.id);
             created = true;
           } else {
             throw new ActionError("AccountDoesNotExist", `account ${r.receiverId} does not exist`);
@@ -467,8 +542,10 @@ export class SimChain {
     let status: OutcomeStatus;
     if (error) {
       // Roll back the receiver's state and refund attached deposits to the predecessor.
-      if (created) this.accounts.delete(r.receiverId);
-      else if (snapshot) this.accounts.set(r.receiverId, snapshot);
+      if (created) {
+        this.accounts.delete(r.receiverId);
+        if (this.fork) this.gone.add(r.receiverId);
+      } else if (snapshot) this.accounts.set(r.receiverId, snapshot);
       const refund = r.actions.reduce((s, a) => s + actionDeposit(a), 0n);
       if (refund > 0n && !r.isRefund && r.predecessorId !== "system") {
         const rr = this.makeReceipt(r, "system", r.predecessorId, [{ type: "Transfer", deposit: refund }]);
@@ -478,7 +555,10 @@ export class SimChain {
       for (const out of r.outputDataReceivers) this.queue.push({ kind: "data", dataId: out.dataId, data: null });
       status = { kind: "failure", error: error.message, errorKind: error.kind };
     } else {
-      if (deleted) this.accounts.delete(r.receiverId);
+      if (deleted) {
+        this.accounts.delete(r.receiverId);
+        if (this.fork) this.gone.add(r.receiverId);
+      }
       for (const s of spawned) this.queue.push({ kind: "action", r: s });
       if (returnPromiseReceipt) {
         returnPromiseReceipt.outputDataReceivers.push(...r.outputDataReceivers);
@@ -511,7 +591,7 @@ export class SimChain {
     // simplification of nearcore's refund receipts).
     const used = lastExec ? lastExec.usedGas : 0n;
     const unused = prepaid > used ? prepaid - used : 0n;
-    const signer = this.accounts.get(r.signerId);
+    const signer = this.acct(r.signerId);
     const refund = unused * r.gasPrice + (r.gasPrice > GAS_PRICE ? burnt * (r.gasPrice - GAS_PRICE) : 0n);
     if (signer && refund > 0n && !r.isRefund) signer.amount += refund;
 
@@ -607,7 +687,7 @@ function clonePermission(p: AccessKeyPermission): AccessKeyPermission {
 function cloneAccount(a: SimAccount): SimAccount {
   const keys = new Map<string, SimAccessKey>();
   for (const [pk, k] of a.keys) keys.set(pk, { nonce: k.nonce, permission: clonePermission(k.permission) });
-  return { ...a, storage: new Map(a.storage), keys };
+  return { ...a, storage: a.storage instanceof LazyStorage ? a.storage.clone() : new Map(a.storage), keys };
 }
 
 function summarise(a: Action): ActionSummary {

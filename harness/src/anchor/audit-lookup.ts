@@ -49,13 +49,29 @@ export interface AuditInput {
   prompt_breaches: number;
 }
 
+/** The RPC did not answer (network error or timeout), as opposed to answering with an error. */
+export class RpcUnreachable extends Error {
+  constructor(
+    readonly url: string,
+    cause: unknown,
+  ) {
+    super(`${new URL(url).host} did not answer (${cause instanceof Error && cause.name === "TimeoutError" ? "timed out" : cause instanceof Error ? cause.message : String(cause)})`);
+  }
+}
+
 /** One NEAR JSON-RPC call over fetch (works in Node 18+ and browsers; NEAR RPCs allow CORS). */
-export async function rpc(url: string, method: string, params: unknown): Promise<any> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: "agentfuzz", method, params }),
-  });
+export async function rpc(url: string, method: string, params: unknown, timeoutMs = 20_000): Promise<any> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: "agentfuzz", method, params }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e) {
+    throw new RpcUnreachable(url, e);
+  }
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
   const body = (await res.json()) as { result?: any; error?: { cause?: { name?: string }; data?: string; message?: string } };
   if (body.error) {

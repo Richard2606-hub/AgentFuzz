@@ -10,6 +10,7 @@
  *    metered. Use the sandbox backend for exact gas.
  */
 import { sha256 as sha256Bytes } from "../platform/crypto.js";
+import { keccak_256, keccak_512 } from "@noble/hashes/sha3.js";
 import { toHex, utf16leDecode } from "../util/bytes.js";
 import type { Action, AccessKeyPermission } from "../near/types.js";
 import {
@@ -335,6 +336,14 @@ export function execute(module: WebAssembly.Module, codeLen: number, method: str
     sha256(len: bigint, ptr: bigint, id: bigint) {
       charge(GAS.sha256Base + GAS.sha256PerByte * len);
       setReg(id, sha256Bytes(read(ptr, len)));
+    },
+    keccak256(len: bigint, ptr: bigint, id: bigint) {
+      charge(GAS.sha256Base + GAS.sha256PerByte * len);
+      setReg(id, keccak_256(read(ptr, len)));
+    },
+    keccak512(len: bigint, ptr: bigint, id: bigint) {
+      charge(GAS.sha256Base + GAS.sha256PerByte * len);
+      setReg(id, keccak_512(read(ptr, len)));
     },
     ed25519_verify(sigLen: bigint, sigPtr: bigint, msgLen: bigint, msgPtr: bigint, pkLen: bigint, pkPtr: bigint) {
       charge(GAS.sha256Base * 10n);

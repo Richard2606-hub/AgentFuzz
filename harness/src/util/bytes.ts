@@ -39,3 +39,19 @@ export function toBase64(bytes: Uint8Array): string {
   }
   return s;
 }
+
+/** Decode standard or URL-safe base64, padded or not. */
+export function fromBase64(s: string): Uint8Array {
+  const clean = s.replace(/[\s=]/g, "").replace(/-/g, "+").replace(/_/g, "/");
+  const out = new Uint8Array(Math.floor((clean.length * 3) / 4));
+  let o = 0;
+  for (let i = 0; i < clean.length; i += 4) {
+    const n = [0, 1, 2, 3].map((j) => (i + j < clean.length ? B64.indexOf(clean[i + j]) : 0));
+    if (n.some((x) => x < 0)) throw new Error("invalid base64");
+    const v = (n[0] << 18) | (n[1] << 12) | (n[2] << 6) | n[3];
+    if (o < out.length) out[o++] = (v >> 16) & 255;
+    if (o < out.length) out[o++] = (v >> 8) & 255;
+    if (o < out.length) out[o++] = v & 255;
+  }
+  return out;
+}

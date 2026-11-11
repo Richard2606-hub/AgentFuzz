@@ -4,6 +4,8 @@
  */
 import type { GeneratorVersion } from "../generators/contract.js";
 import type { InvariantId, InvariantStatus } from "../invariants/types.js";
+import type { Network } from "../account/scan.js";
+import type { SimulationResult } from "../simulate/simulate.js";
 
 export interface TargetInfo {
   name: string;
@@ -77,7 +79,16 @@ export type ToWorker =
   | { type: "init"; base: string }
   | { type: "fuzz"; job: number; target: FuzzTargetRef; seed: number; runs: number; maxSteps: number; generator: GeneratorVersion }
   | { type: "prompt"; job: number; target: string; scenarioIds: string[] }
-  | { type: "prompt-custom"; job: number; target: string; document: string; task: string; apiKey: string; model?: string };
+  | { type: "prompt-custom"; job: number; target: string; document: string; task: string; apiKey: string; model?: string }
+  | {
+      type: "simulate";
+      job: number;
+      network?: Network;
+      /** Either a pasted transaction JSON (with an optional default signer) or the form's fields. */
+      txJson?: string;
+      signerId?: string;
+      fields?: { signerId: string; receiverId: string; transferNear?: string; method?: string; args?: string; depositNear?: string; gasTgas?: string };
+    };
 
 export type FromWorker =
   | { type: "ready"; targets: TargetInfo[]; scenarios: ScenarioInfo[]; cryptoImpl: string }
@@ -88,4 +99,6 @@ export type FromWorker =
   | { type: "fuzz-done"; job: number; summary: FuzzSummary }
   | { type: "prompt-result"; job: number; result: PromptView }
   | { type: "prompt-done"; job: number; target: string; scenarios: number; blocked: number; breaches: number; resisted: number; durationMs: number }
+  | { type: "sim-log"; job: number; line: string }
+  | { type: "sim-done"; job: number; result: SimulationResult }
   | { type: "error"; job?: number; message: string };

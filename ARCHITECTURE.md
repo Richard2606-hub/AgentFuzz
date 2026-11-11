@@ -47,7 +47,8 @@ flowchart TD
 | Account safety scan | `harness/src/account/scan.ts` | Any mainnet or testnet account: `view_account` + `view_access_key_list` (+ `audits_of` on the testnet scoreboard when it runs a contract) → findings on keys, contract and name, with a danger / warn / ok verdict. The analysis is pure functions over those RPC results, tested offline. Shared by `agentfuzz scan` and the playground's Account safety tab. |
 | Anchoring | `harness/src/anchor/anchor.ts` | nearsim (executes `scoreboard.wasm` offline), testnet (near-api-js), local file fallback; testnet read-back for `verify`. |
 | Report orchestration | `harness/src/report.ts` | `report`, `verify` (body hash, deterministic re-run, on-chain record). |
-| CLI | `harness/src/cli.ts`, `cli-report.ts`, `bin/agentfuzz.mjs` | `targets`, `fuzz`, `diff`, `replay`, `matrix`, `prompt`, `report`, `verify`, `check`, `scan`, `render-web`, `anchor`, `scoreboard-deploy`, `demo-guards-deploy`, `demo-offline`. |
+| Simulate before you sign | `harness/src/simulate/fork.ts`, `simulate.ts`, `intent.ts` | `RemoteFork` feeds nearsim (`SimChainOptions.fork`, `LazyStorage`) accounts, code, keys and storage from a NEAR RPC pinned to one final block; the simulator re-runs the transaction until a round reads nothing new, then reports balance, token, key and receipt effects plus risk findings. `intent.ts` decodes token/NFT/storage methods from the arguments alone (also the fallback when large state is unreadable). Shared by `agentfuzz simulate` and the playground's worker. |
+| CLI | `harness/src/cli.ts`, `cli-report.ts`, `cli-simulate.ts`, `bin/agentfuzz.mjs` | `targets`, `fuzz`, `diff`, `replay`, `matrix`, `prompt`, `report`, `verify`, `check`, `scan`, `simulate`, `render-web`, `anchor`, `scoreboard-deploy`, `demo-guards-deploy`, `demo-offline`. |
 | GitHub Action | `.github/actions/agentfuzz` | Drop-in reusable composite action (`agentfuzz-action`) allowing any external guard repository to run AgentFuzz fuzzing and prompt injection in CI. |
 | Platform crypto | `harness/src/platform`, `harness/src/util/bytes.ts` | sha256 and ed25519 behind one interface: `node:crypto` in Node, `@noble/hashes` + `@noble/curves` in browser bundles (byte-identical, tested); Buffer-free hex/base64/UTF-16 helpers. |
 | Browser playground | `harness/src/browser` | `worker.ts` (Web Worker) fetches the committed wasm, manifest and corpus and runs `engine.ts`, which calls the same `runCampaign` / `runPromptCampaign` as the CLI and streams progress, repros (same bytes and file names as the CLI) and prompt results; `page.ts` renders them; `llm-fetch.ts` is the optional NEAR AI client for custom text. No result is stored in the page. |
@@ -81,6 +82,11 @@ Faithful: host-function semantics used by near-sdk (registers, storage, promises
 panics, balances, deposits, `signer_account_pk`), function-call key rules (single FunctionCall, no
 deposit, receiver and method checks, allowance charged on prepaid gas), actor permissions,
 sub-account creation rules, refunds on failure, state rollback, `LackBalanceForState`.
+
+Forking: with `SimChainOptions.fork`, accounts that were not created locally are loaded from a
+fork source on first use, with `LazyStorage` reading uncached keys through it (deletions leave a
+tombstone). Without a fork source nothing changes: the fuzzer's results and every published hash
+are identical. `keccak256` / `keccak512` are implemented for mainnet contracts that import them.
 
 Approximate: gas. Host calls, storage bytes, receipt/action creation and contract loading are
 charged with nearcore-like constants; wasm instructions are not metered, and gas refunds are

@@ -20,6 +20,7 @@ import { runMatrix } from "./matrix.js";
 import { loadCorpus, makePlanner, runPromptCampaign, type PromptCampaign, type PromptResult } from "./prompt-runner.js";
 import { cmdAnchor, cmdCheck, cmdDemoGuardsDeploy, cmdDemoOffline, cmdRenderWeb, cmdReport, cmdScan, cmdScoreboardDeploy, cmdVerify } from "./cli-report.js";
 import { sandboxBackendFactory, differential } from "./differential.js";
+import { cmdSimulate } from "./cli-simulate.js";
 import { openaiChatClient } from "./agent/openai-client.js";
 import { llmConfigFromEnv, pickModel } from "./agent/planners.js";
 import { DEFAULT_GENERATOR, parseGenerator } from "./generators/contract.js";
@@ -281,6 +282,8 @@ function help() {
                                             exit 0 clean, 2 broken, 3 not audited, 4 no contract, 5 incomplete [--trust a.testnet] [--json]
   agentfuzz scan <account>                  safety scan of any NEAR account (mainnet or testnet): risky keys, look-alike
                                             names, audited contract. exit 0 ok, 2 danger, 3 review, 4 missing [--network] [--json]
+  agentfuzz simulate --signer a.near --to b.near --transfer 1   simulate before you sign: run a transaction on a fork
+                                            of mainnet/testnet; [--call m --args JSON --deposit N] [--tx tx.json] [--json]
   agentfuzz render-web [scorecard.json]     rebuild web/index.html from a scorecard (no re-run, no anchoring)
   agentfuzz anchor [scorecard.json]         anchor an existing scorecard  [--network nearsim|testnet]
   agentfuzz scoreboard-deploy               deploy or upgrade artifacts/scoreboard.wasm on testnet (needs .env credentials)
@@ -322,6 +325,9 @@ async function main() {
       return cmdCheck(positional, flags);
     case "scan":
       return cmdScan(positional, flags);
+    case "simulate":
+    case "sim":
+      return cmdSimulate(flags);
     case "anchor":
       return cmdAnchor(positional, flags, outDir(flags));
     case "demo-guards-deploy":

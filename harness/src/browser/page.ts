@@ -6,6 +6,7 @@
 import { checkGuard, type CheckResult } from "../anchor/audit-lookup.js";
 import { scanAccount, type Network, type ScanResult, type Severity } from "../account/scan.js";
 import { fmtNear } from "../near/keys.js";
+import type { SimulationResult } from "../simulate/simulate.js";
 import type { FromWorker, FuzzSummary, InvariantView, PromptView, ReproView, ScenarioInfo, TargetInfo, ToWorker } from "./protocol.js";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -46,7 +47,7 @@ const send = (m: ToWorker, transfer: Transferable[] = []) => worker.postMessage(
 
 function setBusy(b: boolean) {
   busy = b;
-  for (const id of ["fz-run", "pr-run", "pr-run-all", "cu-run"]) $<HTMLButtonElement>(id).disabled = b || !targets.length;
+  for (const id of ["fz-run", "pr-run", "pr-run-all", "cu-run", "sm-run"]) $<HTMLButtonElement>(id).disabled = b || !targets.length;
   $<HTMLButtonElement>("fz-stop").disabled = !b;
 }
 
@@ -73,6 +74,11 @@ function onMessage(m: FromWorker) {
       return fuzzDone(m.summary);
     case "prompt-result":
       return promptResult(m.result);
+    case "sim-log":
+      return simLogLine(m.line);
+    case "sim-done":
+      setBusy(false);
+      return simDone(m.result);
     case "prompt-done":
       setBusy(false);
       $(customRun ? "cu-status" : "pr-status").textContent = `done in ${(m.durationMs / 1000).toFixed(1)} s`;
@@ -411,6 +417,125 @@ document.querySelectorAll<HTMLButtonElement>(".sc-example").forEach((b) =>
     void runScan();
   }),
 );
+
+// ---------------------------------------------------------------- simulate before you sign (runs in the worker)
+
+const GUARD_REF = "guard-reference.agentfuzz-28213.testnet";
+const GUARD_NAIVE = "guard-naive.agentfuzz-28213.testnet";
+type SimExample = { mode: "transfer" | "call" | "json"; signer: string; to?: string; amount?: string; method?: string; args?: string; deposit?: string; gas?: string; json?: string };
+const SIM_EXAMPLES: Record<string, SimExample> = {
+  rotate: { mode: "call", signer: GUARD_NAIVE, to: GUARD_NAIVE, method: "rotate_key", args: '{"new_public_key":"ed25519:8az9oB8mcn3DBYDCg6v32JhSsktcWdGwp8D5x9mU1aLo"}', gas: "60" },
+  pay: { mode: "call", signer: GUARD_REF, to: GUARD_REF, method: "pay", args: '{"receiver_id":"agentfuzz-28213.testnet","amount":"50000000000000000000000"}', gas: "60" },
+  attacker: { mode: "call", signer: GUARD_REF, to: GUARD_REF, method: "pay", args: '{"receiver_id":"attacker.testnet","amount":"50000000000000000000000"}', gas: "60" },
+  lookalike: { mode: "transfer", signer: "root.near", to: "wrap-near.near", amount: "1" },
+  wrap: { mode: "call", signer: "root.near", to: "wrap.near", method: "near_deposit", args: "{}", deposit: "1", gas: "30" },
+  addkey: {
+    mode: "json",
+    signer: "root.near",
+    json: JSON.stringify({ receiverId: "root.near", actions: [{ type: "AddKey", params: { publicKey: "ed25519:8az9oB8mcn3DBYDCg6v32JhSsktcWdGwp8D5x9mU1aLo", accessKey: { permission: "FullAccess" } } }] }, null, 1),
+  },
+};
+
+function smMode() {
+  const m = $<HTMLSelectElement>("sm-mode").value;
+  $("sm-transfer-box").hidden = m !== "transfer";
+  $("sm-call-box").hidden = m !== "call";
+  $("sm-json-box").hidden = m !== "json";
+  $("sm-to").parentElement!.hidden = m === "json";
+}
+$("sm-mode").addEventListener("change", smMode);
+
+let simLog: string[] = [];
+function runSimulate() {
+  if (busy) return void ($("sm-status").textContent = "The engine is busy with a fuzz or prompt run; wait for it or press Stop on that tab.");
+  const v = (id: string) => $<HTMLInputElement>(id).value.trim();
+  const mode = $<HTMLSelectElement>("sm-mode").value;
+  const signerId = v("sm-signer").toLowerCase();
+  if (!signerId && mode !== "json") return void ($("sm-status").textContent = "Enter the signer: the account that would sign.");
+  const network = ($<HTMLSelectElement>("sm-network").value || undefined) as Network | undefined;
+  job++;
+  statusId = "sm-status";
+  simLog = [];
+  $("sm-result").innerHTML = "";
+  $("sm-status").textContent = "forking the network…";
+  setBusy(true);
+  if (mode === "json") send({ type: "simulate", job, network, txJson: v("sm-json"), signerId: signerId || undefined });
+  else
+    send({
+      type: "simulate",
+      job,
+      network,
+      fields:
+        mode === "transfer"
+          ? { signerId, receiverId: v("sm-to"), transferNear: v("sm-amount") || "0" }
+          : { signerId, receiverId: v("sm-to"), method: v("sm-method"), args: v("sm-args"), depositNear: v("sm-deposit"), gasTgas: v("sm-gas") },
+    });
+}
+$("sm-run").addEventListener("click", runSimulate);
+document.querySelectorAll<HTMLButtonElement>(".sm-example").forEach((b) =>
+  b.addEventListener("click", () => {
+    const ex = SIM_EXAMPLES[b.dataset.ex ?? ""];
+    if (!ex) return;
+    const set = (id: string, val = "") => ($<HTMLInputElement>(id).value = val);
+    $<HTMLSelectElement>("sm-mode").value = ex.mode;
+    $<HTMLSelectElement>("sm-network").value = "";
+    set("sm-signer", ex.signer);
+    set("sm-to", ex.to);
+    set("sm-amount", ex.amount);
+    set("sm-method", ex.method);
+    set("sm-args", ex.args);
+    set("sm-deposit", ex.deposit);
+    set("sm-gas", ex.gas);
+    set("sm-json", ex.json);
+    smMode();
+    runSimulate();
+  }),
+);
+
+function simLogLine(line: string) {
+  simLog.push(line);
+  $("sm-status").textContent = line;
+}
+
+function simDone(r: SimulationResult) {
+  const nearDelta = (n: SimulationResult["near"][number]) => `${nearAmount(n.before)} → ${n.after === null ? "deleted" : nearAmount(n.after)}`;
+  const [cls, label] = r.verdict === "danger" ? ["bad", "danger"] : r.verdict === "warn" ? ["warn", "review"] : ["ok", "nothing risky found"];
+  const list = (items: string[]) => `<ul class="sim-list">${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`;
+  const changed = r.tokenBalances.filter((b) => b.delta !== "0");
+  $("sm-result").innerHTML = `<div class="repro">
+    <h4>${badge(cls, label)} ${r.mode === "decoded" ? badge("warn", "decoded only, not executed") : badge("info", `simulated on ${r.network} at block ${r.block.height}`)}</h4>
+    <b>What it asks for</b>${list(r.intent)}
+    <b>${r.mode === "executed" ? "What would happen" : "What it would do, if it succeeds"}</b>${list(r.summary)}
+    ${r.findings.map((f) => `<div class="finding ${f.severity}"><b>${badge(...SEVERITY_BADGE[f.severity])} ${esc(f.title)}</b><span class="small">${esc(f.detail)}</span></div>`).join("")}
+    ${
+      r.near.length || changed.length
+        ? `<h4 style="margin-top:14px">Balances before → after</h4><table class="compact"><tbody>${r.near.map((n) => `<tr><td class="mono">${esc(n.accountId)}</td><td>NEAR</td><td>${esc(nearDelta(n))}</td></tr>`).join("")}${changed
+            .map((b) => `<tr><td class="mono">${esc(b.accountId)}</td><td>${esc(b.symbol ?? b.contract)}</td><td>${esc(tokenAmount(b.before, b.decimals))} → ${esc(tokenAmount(b.after, b.decimals))}</td></tr>`)
+            .join("")}</tbody></table>`
+        : ""
+    }
+    ${
+      r.txs.length
+        ? `<details><summary class="small">Receipts (${r.txs.reduce((n, t) => n + t.receipts.length, 0)}), as nearsim executed them</summary><ol class="small">${r.txs
+            .flatMap((t) =>
+              t.rejected
+                ? [`<li class="badc">refused: ${esc(t.rejected)}</li>`]
+                : t.receipts.map((x) => `<li><span class="${x.status === "success" ? "okc" : "badc"}">${x.status === "success" ? "ok" : "failed"}</span> <span class="mono">${esc(x.predecessorId)} → ${esc(x.receiverId)}</span>: ${esc(x.actions.join("; "))}${x.error ? ` <span class="badc">(${esc(x.error)})</span>` : ""}${x.logs.length ? `<div class="sim-log">${esc(x.logs.join("\n"))}</div>` : ""}</li>`),
+            )
+            .join("")}</ol></details>`
+        : ""
+    }
+    <div class="small muted" style="margin-top:8px">${r.stats.rounds + 1} round(s) · ${r.stats.accounts} account(s) and ${r.stats.wholeStates + r.stats.storageKeys} state read(s) from the network · ${r.stats.rpcCalls} RPC calls · ${(r.stats.ms / 1000).toFixed(1)} s${r.fees !== "0" ? ` · fee ≈ ${esc(nearAmount(r.fees))}` : ""}</div>
+  </div>`;
+  $("sm-status").textContent = r.mode === "executed" ? "simulated just now; nothing was signed or sent" : "decoded only; see the note";
+}
+const tokenAmount = (raw: string, decimals?: number) => {
+  if (!decimals) return raw;
+  const v = BigInt(raw);
+  const base = 10n ** BigInt(decimals);
+  const frac = (v % base).toString().padStart(decimals, "0").replace(/0+$/, "").slice(0, 6);
+  return `${v / base}${frac ? `.${frac}` : ""}`;
+};
 
 // ---------------------------------------------------------------- CLI / CI builder
 

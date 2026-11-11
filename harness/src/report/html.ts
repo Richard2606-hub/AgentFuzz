@@ -140,6 +140,8 @@ select:focus,input:focus,textarea:focus{border-color:var(--accent)}input[type=fi
 .summary-line{font-size:15px;margin:8px 0}
 .finding{border-left:4px solid var(--line);background:#090d14;border-radius:8px;padding:9px 12px;margin:8px 0}.finding b{display:block;margin-bottom:2px}.finding.danger{border-left-color:var(--bad);background:#1a0f12}.finding.warn{border-left-color:var(--warn)}.finding.info{border-left-color:var(--info)}.finding.ok{border-left-color:var(--ok)}
 .keys td{font-size:13px}.keys td.mono{word-break:break-all}
+.sim-list{margin:6px 0 10px 18px;padding:0}.sim-list li{margin:4px 0;word-break:break-word}
+.sim-log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--muted);white-space:pre-wrap;word-break:break-word}
 `;
 
 export function renderScorecardHtml(sc: Scorecard): string {
@@ -176,6 +178,7 @@ export function renderScorecardHtml(sc: Scorecard): string {
   <button class="tab-btn" data-tab="prompt">Prompt injection</button>
   <button class="tab-btn" data-tab="check">Check a wallet</button>
   <button class="tab-btn" data-tab="scan">Account safety</button>
+  <button class="tab-btn" data-tab="simulate">Simulate before you sign</button>
   <button class="tab-btn" data-tab="scorecard">Published scorecard</button>
   <button class="tab-btn" data-tab="cli">Run it yourself</button>
 </div>
@@ -267,6 +270,51 @@ export function renderScorecardHtml(sc: Scorecard): string {
     <pre><code># exit code: 0 clean · 2 broken · 3 not audited · 4 no contract · 5 incomplete
 node bin/agentfuzz.mjs check ${esc(examples[0] ?? "guard.your-account.testnet")}</code></pre>
     <p class="muted small">An audit is a claim by its submitter; it names a report that <code>agentfuzz verify</code> re-runs to the same hash. Pass <code>--trust account.testnet</code> to count only submitters you trust.</p>
+  </section>
+</div>
+
+<!-- TAB: SIMULATE -->
+<div id="tab-simulate" class="tab-content">
+  <section class="card" id="sm">
+    <div class="card-head"><div>
+      <h3>Simulate before you sign</h3>
+      <p class="muted small">Runs a transaction on a copy of mainnet or testnet before anyone signs it: the receiver's real contract code executes in nearsim (in your browser) on the network's current state, loaded on demand from public RPCs. You see what would really happen (NEAR and tokens in and out, keys added or removed, failures and fees), and what to worry about. Nothing is signed or sent; no wallet needed.</p>
+    </div></div>
+    <div class="controls">
+      <div class="field-box"><label for="sm-mode">Transaction</label><select id="sm-mode"><option value="transfer">Send NEAR</option><option value="call">Call a contract</option><option value="json">Paste transaction JSON</option></select></div>
+      <div class="field-box"><label for="sm-signer">Signer (who signs)</label><input type="text" id="sm-signer" placeholder="you.near" spellcheck="false" autocapitalize="off"></div>
+      <div class="field-box"><label for="sm-to">Receiver / contract</label><input type="text" id="sm-to" placeholder="bob.near" spellcheck="false" autocapitalize="off"></div>
+      <div class="field-box"><label for="sm-network">Network</label><select id="sm-network"><option value="">auto (.testnet = testnet)</option><option value="mainnet">mainnet</option><option value="testnet">testnet</option></select></div>
+    </div>
+    <div class="controls" id="sm-transfer-box">
+      <div class="field-box"><label for="sm-amount">Amount (NEAR)</label><input type="text" id="sm-amount" placeholder="1.5"></div>
+    </div>
+    <div class="controls" id="sm-call-box" hidden>
+      <div class="field-box"><label for="sm-method">Method</label><input type="text" id="sm-method" placeholder="ft_transfer" spellcheck="false"></div>
+      <div class="field-box wide"><label for="sm-args">Arguments (JSON)</label><input type="text" id="sm-args" placeholder='{"receiver_id":"bob.near","amount":"1000000"}' spellcheck="false"></div>
+      <div class="field-box"><label for="sm-deposit">Deposit (NEAR)</label><input type="text" id="sm-deposit" placeholder="0"></div>
+      <div class="field-box"><label for="sm-gas">Gas (Tgas)</label><input type="text" id="sm-gas" placeholder="30"></div>
+    </div>
+    <div class="field-box" id="sm-json-box" hidden><label for="sm-json">Transaction JSON <span class="muted">(what a dApp passes to <code>signAndSendTransaction</code>, an explorer's or RPC's transaction, or a list of them)</span></label><textarea id="sm-json" rows="7" spellcheck="false" placeholder='{"receiverId":"wrap.near","actions":[{"type":"FunctionCall","params":{"methodName":"near_deposit","args":{},"gas":"30000000000000","deposit":"1000000000000000000000000"}}]}'></textarea></div>
+    <div class="btn-row">
+      <button class="btn" id="sm-run" disabled>Simulate</button>
+      <span class="muted small" id="sm-status"></span>
+    </div>
+    <div class="btn-row small" style="margin-top:-4px">
+      <span class="muted">Try:</span>
+      <button class="btn secondary sm-example" data-ex="rotate">agent key installs a full-access key (naive guard)</button>
+      <button class="btn secondary sm-example" data-ex="pay">agent pays 0.05 NEAR (reference guard)</button>
+      <button class="btn secondary sm-example" data-ex="attacker">agent pays an attacker (reference guard)</button>
+      <button class="btn secondary sm-example" data-ex="lookalike">1 NEAR to a look-alike (mainnet)</button>
+      <button class="btn secondary sm-example" data-ex="wrap">wrap 1 NEAR (mainnet)</button>
+      <button class="btn secondary sm-example" data-ex="addkey">dApp asks to add a full-access key</button>
+    </div>
+    <div id="sm-result"></div>
+    <h4>From the command line</h4>
+    <pre><code># exit code: 0 nothing risky · 2 danger · 3 review (fails, refused, or not fully simulated)
+node bin/agentfuzz.mjs simulate --signer you.near --to wrap.near --call near_deposit --deposit 1
+node bin/agentfuzz.mjs simulate --tx tx.json --signer you.near</code></pre>
+    <p class="muted small">Limits: nearsim meters host calls, not every wasm instruction, so a call that would run out of gas on-chain can succeed here. Public RPCs refuse to serve the storage of contracts over 50 kB (wrap.near, USDt, Ref…); for those the page reads storage key by key from <code>rpc.intea.rs</code>, which is slower, and when it does not answer, the result is <em>decoded</em> from the transaction's arguments instead of executed, and says so.</p>
   </section>
 </div>
 

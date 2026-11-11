@@ -60,7 +60,8 @@ Every claim in this README is a command. Expected output is abbreviated.
 | `make verify` | `✓ body hash matches … ✓ deterministic re-run reproduced the identical hash … verified` |
 | `cd harness && node bin/agentfuzz.mjs diff --target reference --runs 20` | Differential test: runs identical sequences on nearsim and real nearcore sandbox, confirming 20/20 agree |
 | `cd harness && node bin/agentfuzz.mjs scan wrap-near.near` | Reads the mainnet account and flags it: `✗ Looks like wrap.near (Wrapped NEAR (wNEAR)), but is a different account`, exit code 2. Try your own account: risky keys are `!` (exit 3), nothing risky exits 0 |
-| `make test` | 38 contract unit tests (if Rust is installed) and 98 harness tests, including the planted-bug matrix, a check that the published scorecard still reproduces, and a check that the browser bundle gives the CLI's exact results |
+| `cd harness && node bin/agentfuzz.mjs simulate --signer guard-naive.agentfuzz-28213.testnet --to guard-naive.agentfuzz-28213.testnet --call rotate_key --args '{"new_public_key":"ed25519:8az9oB8mcn3DBYDCg6v32JhSsktcWdGwp8D5x9mU1aLo"}' --gas 60` | Forks testnet, runs the deployed naive guard's real wasm on its live state: `Adds a full-access key … Removes the key …`, `✗ Gives someone full control of your account`, exit code 2. `--to wrap-near.near --transfer 1 --signer root.near`: `✗ Receiver wrap-near.near: looks like wrap.near` |
+| `make test` | 38 contract unit tests (if Rust is installed) and 108 harness tests, including the planted-bug matrix, a check that the published scorecard still reproduces, and a check that the browser bundle gives the CLI's exact results |
 | `make sandbox-test` (Linux/macOS) | The same wasm on a real nearcore sandbox via near-workspaces: INV-3/INV-4 hold on the reference guard; the naive key escalation and look-alike payment reproduce on nearcore |
 
 ## What it checks
@@ -141,6 +142,9 @@ engine client-side: no server, no scripted results.
   scoreboard's audits of that build straight from a NEAR RPC (see below).
 * **Account safety**: a safety scan of any mainnet or testnet account, for every NEAR user (see
   [Account safety](#account-safety-for-every-near-user)). Deep link: `…/#scan`.
+* **Simulate before you sign**: run a transaction on a fork of mainnet or testnet in the browser
+  and see what it would really do (see [Simulate before you sign](#simulate-before-you-sign)).
+  Deep link: `…/#simulate`.
 
 Build it with `make web` (esbuild bundles, wasm, corpus and `index.html` into `web/`; the
 generated files are not committed) and open it with `make serve-web`, since browsers block Web
@@ -201,6 +205,47 @@ you gave it; a clean scan means no known risk pattern, not a guarantee.
 | `wrap-near.near` (mainnet) | ✗ looks like `wrap.near`, but is a different account (exit 2) |
 | `guard-naive.agentfuzz-28213.testnet` | ✗ audited build: 6/6 invariants broken; ! agent key can call `rotate_key` (exit 2) |
 | `guard-reference.agentfuzz-28213.testnet` | ✓ locked account, agent key scoped to `pay`, audited build held 6/6 (exit 0) |
+
+## Simulate before you sign
+
+Wallets show *what you are asked to sign*; AgentFuzz shows *what would happen*.
+`agentfuzz simulate` (or the **Simulate before you sign** tab) takes a transaction, as simple
+fields, as the JSON a dApp passes to `signAndSendTransaction`, or as an explorer's transaction, and
+runs it on a fork of mainnet or testnet in nearsim: the receiver's **real contract wasm** executes
+on the network's **current state**, with every cross-contract call, callback and refund. Nothing is
+signed or sent.
+
+How the fork works: nearsim runs synchronously, the network is behind async RPC, so the simulator
+runs in rounds. Every account, contract code and storage key the execution touches that is not
+loaded yet is recorded and treated as absent; the misses are fetched (pinned to one final block)
+and the whole transaction re-runs. A round with no misses read only real state, so its result is
+the real one, up to nearsim's fidelity. Small contracts load their whole state in one call.
+
+What it reports, in plain words:
+
+* **What it asks for**: the actions decoded, with NEP-141 / NEP-145 / NEP-171 / NEP-178 / NEP-245
+  and wNEAR methods turned into sentences ("Send 5 USDt to bob.near").
+* **What would happen**: NEAR in and out per account, token balances before and after (any
+  touched contract that has `ft_balance_of`, plus NEP-141/171 events), keys added and removed,
+  failures with the contract's own error, the fee, and every receipt.
+* **Risks**: a full-access key being added, the last full-access key removed, the account deleted,
+  code deployed on your account, an NFT approval, a forced storage unregister, sending more than
+  half your NEAR, and money or tokens going to a look-alike or a missing account.
+
+| Transaction | Result |
+|-------------|--------|
+| The agent key of `guard-naive.agentfuzz-28213.testnet` calls `rotate_key` | ✗ executed: the guard deletes the agent key and **adds a full-access key** (exit 2) |
+| The agent key of `guard-reference.agentfuzz-28213.testnet` pays 0.05 NEAR to its allowlisted payee | ✓ executed: 0.05 NEAR sent, fee ≈ 0.0011 NEAR (exit 0) |
+| The same agent pays `attacker.testnet` | ! executed: fails with the guard's own `receiver is not allowlisted` (exit 3) |
+| `root.near` sends 1 NEAR to `wrap-near.near` | ✗ look-alike of `wrap.near` (exit 2) |
+| A dApp asks `root.near` to add a full-access key | ✗ gives someone full control of the account (exit 2) |
+
+Limits: public RPCs refuse `view_state` on contracts over 50 kB (wrap.near, USDt, Ref…), so their
+storage is read key by key from `rpc.intea.rs` (`--state-rpc` to change it), about a second per
+key without an API key. When it does not answer, the result is **decoded only** (what the
+arguments ask for, with the same risk checks) and says so. nearsim meters host calls, not every
+wasm instruction, so a call that runs out of gas on-chain can succeed here; a contract calling a
+host function nearsim lacks is reported as not fully simulated.
 
 ## NEAR primitives used
 
@@ -307,6 +352,7 @@ harness/src/runner.ts        deploy -> attack -> check -> minimise -> report
 harness/src/report/          scorecard JSON + HTML
 harness/src/anchor/          scoreboard anchoring (nearsim / testnet / local) + audit lookup
 harness/src/account/         account safety scan: keys, look-alike names, audited contract
+harness/src/simulate/        simulate before you sign: lazy fork of mainnet/testnet, intent decoder
 corpus/prompt/               committed prompt-layer attacks
 tests/sandbox/               near-workspaces integration tests (real nearcore)
 targets/third-party/         adapters + policy for third-party guards
@@ -323,6 +369,8 @@ web/                         static site: scorecard + playground (built by make 
 * Prompt-layer results with a live model depend on the model; the committed corpus is a snapshot.
 * Guards are checked on native NEAR transfers; NEP-141 token payments are not modelled yet.
 * A8 (social engineering of a human approval step) is not implemented.
+* Simulating against contracts over 50 kB of state depends on one public RPC that serves large
+  state (`rpc.intea.rs`); without it those transactions are decoded, not executed.
 * The account scan's look-alike check compares against a short built-in list of well-known
   accounts; a look-alike of an account not on that list is caught only by the prefix rule.
 * The browser playground drives uploaded guards through the `agentfuzz-guard-v1` interface only;

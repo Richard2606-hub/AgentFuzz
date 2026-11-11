@@ -8,6 +8,7 @@ import { BUILTIN_TARGETS, targetFromBytes, type LoadedTarget } from "../targets/
 import { CRYPTO_IMPL, customScenario, fuzz, prompt } from "./engine.js";
 import { fetchChatClient } from "./llm-fetch.js";
 import type { FromWorker, FuzzTargetRef, ToWorker } from "./protocol.js";
+import { parseTransactions, simulate, txFromFields } from "../simulate/simulate.js";
 
 const post = (m: FromWorker) => (self as unknown as Worker).postMessage(m);
 
@@ -63,6 +64,12 @@ async function handle(m: ToWorker) {
     case "prompt": {
       const wanted = new Set(m.scenarioIds);
       await prompt(await builtin(m.target), corpus.filter((s) => wanted.has(s.id)), new CompromisedPlanner(), post, m.job);
+      return;
+    }
+    case "simulate": {
+      const txs = m.txJson ? parseTransactions(JSON.parse(m.txJson), m.signerId) : [txFromFields(m.fields!)];
+      const result = await simulate(txs, { network: m.network, log: (line) => post({ type: "sim-log", job: m.job, line }) });
+      post({ type: "sim-done", job: m.job, result });
       return;
     }
     case "prompt-custom": {
