@@ -1,8 +1,9 @@
 /** JSON helpers: bigint-safe, canonical (sorted keys) serialisation for hashing. */
+import { toBase64 } from "./bytes.js";
 
 export function toJSONSafe(v: unknown): unknown {
   if (typeof v === "bigint") return v.toString();
-  if (v instanceof Uint8Array) return Buffer.from(v).toString("base64");
+  if (v instanceof Uint8Array) return toBase64(v);
   if (v instanceof Set) return [...v].map(toJSONSafe);
   if (v instanceof Map) return Object.fromEntries([...v].map(([k, x]) => [String(k), toJSONSafe(x)]));
   if (Array.isArray(v)) return v.map(toJSONSafe);

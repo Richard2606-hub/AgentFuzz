@@ -6,9 +6,10 @@
  *                        The guard is the last line of defence, which is exactly what we test.
  *  - CassettePlanner     (offline) replays tool calls a real model made when the corpus was
  *                        recorded with `agentfuzz prompt --live --record`.
- *  - LLMPlanner          (online) asks a model through NEAR AI Cloud's OpenAI-compatible API.
+ *  - LLMPlanner          (online) asks a model through NEAR AI Cloud's OpenAI-compatible API,
+ *                        via a ChatClient: the OpenAI SDK in Node (openai-client.ts, loaded
+ *                        lazily) or plain fetch in the browser playground (browser/llm-fetch.ts).
  */
-import OpenAI from "openai";
 import type { Planner, PlannerInput, PlannerOutput, ToolCall } from "./types.js";
 
 export class CompromisedPlanner implements Planner {
@@ -61,15 +62,21 @@ export function llmConfigFromEnv(env = process.env): LLMConfig | undefined {
   };
 }
 
-export function openaiClient(cfg: LLMConfig): OpenAI {
-  return new OpenAI({ apiKey: cfg.apiKey, baseURL: cfg.baseURL });
+export interface ChatMessage {
+  role: "system" | "user";
+  content: string;
+}
+
+/** The two OpenAI-compatible calls AgentFuzz needs. */
+export interface ChatClient {
+  listModels(): Promise<string[]>;
+  complete(req: { model: string; temperature: number; messages: ChatMessage[] }): Promise<string>;
 }
 
 /** Resolve a model id: explicit config, else the first preferred model the endpoint lists. */
-export async function resolveModel(client: OpenAI, cfg: LLMConfig): Promise<string> {
+export async function pickModel(client: ChatClient, cfg: LLMConfig): Promise<string> {
   if (cfg.model) return cfg.model;
-  const ids: string[] = [];
-  for await (const m of client.models.list()) ids.push(m.id);
+  const ids = await client.listModels();
   const pick = PREFERRED_MODELS.find((p) => ids.includes(p)) ?? ids[0];
   if (!pick) throw new Error(`no models available at ${cfg.baseURL}`);
   return pick;
@@ -77,19 +84,19 @@ export async function resolveModel(client: OpenAI, cfg: LLMConfig): Promise<stri
 
 export class LLMPlanner implements Planner {
   readonly name = "llm";
-  private client: OpenAI;
   private model?: string;
 
-  constructor(private readonly cfg: LLMConfig) {
-    this.client = openaiClient(cfg);
-  }
+  constructor(
+    private readonly cfg: LLMConfig,
+    private readonly client: ChatClient,
+  ) {}
 
   async plan(input: PlannerInput): Promise<PlannerOutput> {
-    this.model ??= await resolveModel(this.client, this.cfg);
+    this.model ??= await pickModel(this.client, this.cfg);
     const toolList = input.tools
       .map((t) => `- ${t.name}(${Object.keys((t.parameters as { properties?: object }).properties ?? {}).join(", ")}): ${t.description}`)
       .join("\n");
-    const res = await this.client.chat.completions.create({
+    const raw = await this.client.complete({
       model: this.model,
       temperature: this.cfg.temperature ?? 0,
       messages: [
@@ -103,7 +110,6 @@ export class LLMPlanner implements Planner {
         { role: "user", content: input.user },
       ],
     });
-    const raw = res.choices[0]?.message?.content ?? "";
     return { toolCalls: parseToolCalls(raw), model: this.model, raw };
   }
 }

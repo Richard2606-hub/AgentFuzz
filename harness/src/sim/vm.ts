@@ -9,7 +9,8 @@
  *    contract loading are charged with nearcore-like constants, but wasm instructions are not
  *    metered. Use the sandbox backend for exact gas.
  */
-import { createHash } from "node:crypto";
+import { sha256 as sha256Bytes } from "../platform/crypto.js";
+import { toHex, utf16leDecode } from "../util/bytes.js";
 import type { Action, AccessKeyPermission } from "../near/types.js";
 import {
   ed25519Verify,
@@ -138,7 +139,7 @@ const STORAGE_RECORD_OVERHEAD = 40n;
 const moduleCache = new Map<string, WebAssembly.Module>();
 
 export function codeHash(code: Uint8Array): string {
-  return createHash("sha256").update(code).digest("hex");
+  return toHex(sha256Bytes(code));
 }
 
 export function compileModule(code: Uint8Array): WebAssembly.Module {
@@ -240,7 +241,7 @@ export function execute(module: WebAssembly.Module, codeLen: number, method: str
     charge(actionSendCost(a));
     r.actions.push(a);
   };
-  const storageKey = (len: bigint, ptr: bigint) => Buffer.from(read(ptr, len)).toString("hex");
+  const storageKey = (len: bigint, ptr: bigint) => toHex(read(ptr, len));
 
   const env: Record<string, (...args: any[]) => any> = {
     // registers
@@ -333,7 +334,7 @@ export function execute(module: WebAssembly.Module, codeLen: number, method: str
     // crypto
     sha256(len: bigint, ptr: bigint, id: bigint) {
       charge(GAS.sha256Base + GAS.sha256PerByte * len);
-      setReg(id, new Uint8Array(createHash("sha256").update(read(ptr, len)).digest()));
+      setReg(id, sha256Bytes(read(ptr, len)));
     },
     ed25519_verify(sigLen: bigint, sigPtr: bigint, msgLen: bigint, msgPtr: bigint, pkLen: bigint, pkPtr: bigint) {
       charge(GAS.sha256Base * 10n);
@@ -360,7 +361,7 @@ export function execute(module: WebAssembly.Module, codeLen: number, method: str
     },
     log_utf16(len: bigint, ptr: bigint) {
       const bytes = read(ptr, len);
-      const s = Buffer.from(bytes).toString("utf16le");
+      const s = utf16leDecode(bytes);
       charge(GAS.logBase + GAS.logPerByte * BigInt(bytes.length));
       logs.push(s);
     },

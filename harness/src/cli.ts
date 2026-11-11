@@ -20,7 +20,8 @@ import { runMatrix } from "./matrix.js";
 import { loadCorpus, makePlanner, runPromptCampaign, type PromptCampaign, type PromptResult } from "./prompt-runner.js";
 import { cmdAnchor, cmdDemoOffline, cmdReport, cmdScoreboardDeploy, cmdVerify } from "./cli-report.js";
 import { sandboxBackendFactory, differential } from "./differential.js";
-import { llmConfigFromEnv, openaiClient, resolveModel } from "./agent/planners.js";
+import { openaiChatClient } from "./agent/openai-client.js";
+import { llmConfigFromEnv, pickModel } from "./agent/planners.js";
 import { DEFAULT_GENERATOR, parseGenerator } from "./generators/contract.js";
 import { generateCorpus } from "./generators/prompt.js";
 
@@ -236,8 +237,8 @@ async function cmdCorpus(positional: string[], flags: Flags) {
   if (sub !== "generate") throw new Error("usage: agentfuzz corpus list | corpus generate --class A1|A2 --n 10");
   const cfg = llmConfigFromEnv();
   if (!cfg) throw new Error("corpus generate needs NEAR_AI_API_KEY (see .env.example); offline runs use the committed corpus");
-  const client = openaiClient(cfg);
-  const model = await resolveModel(client, cfg);
+  const client = openaiChatClient(cfg);
+  const model = await pickModel(client, cfg);
   const cls = str(flags, "class", "A1") as "A1" | "A2";
   const n = num(flags, "n", 8);
   console.log(`${c.bold("AgentFuzz corpus generate")} ${c.dim("·")} ${cls} × ${n} ${c.dim("·")} model ${model} @ ${cfg.baseURL}`);
@@ -245,7 +246,7 @@ async function cmdCorpus(positional: string[], flags: Flags) {
     cls,
     n,
     complete: async (system, user) => {
-      const res = await client.chat.completions.create({
+      const text = await client.complete({
         model,
         temperature: Number(process.env.AGENTFUZZ_TEMPERATURE ?? 0.9),
         messages: [
@@ -253,7 +254,7 @@ async function cmdCorpus(positional: string[], flags: Flags) {
           { role: "user", content: user },
         ],
       });
-      return { text: res.choices[0]?.message?.content ?? "", model };
+      return { text, model };
     },
   });
   for (const s of r.added) console.log(`  ${c.green("+")} ${s.id} ${s.title}`);

@@ -5,7 +5,8 @@
  * fuzz seed produces the same accounts and keys in nearsim *and* in a near-workspaces
  * sandbox (where transactions are actually signed).
  */
-import { createHash, createPrivateKey, createPublicKey, sign as edSign, verify as edVerify } from "node:crypto";
+import { ed25519FromSeed, ed25519Verify as platformVerify, sha256 as platformSha256 } from "../platform/crypto.js";
+import { toHex } from "../util/bytes.js";
 
 const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const ALPHABET_MAP = new Map([...ALPHABET].map((c, i) => [c, i]));
@@ -41,11 +42,11 @@ export function base58Decode(s: string): Uint8Array {
 }
 
 export function sha256(data: Uint8Array | string): Uint8Array {
-  return new Uint8Array(createHash("sha256").update(data).digest());
+  return platformSha256(data);
 }
 
 export function sha256Hex(data: Uint8Array | string): string {
-  return createHash("sha256").update(data).digest("hex");
+  return toHex(platformSha256(data));
 }
 
 /** "ed25519:<base58>" -> borsh bytes (1-byte curve tag + raw key). */
@@ -84,8 +85,6 @@ function splitKey(pk: string): [string, string] {
   return [pk.slice(0, i), pk.slice(i + 1)];
 }
 
-const PKCS8_ED25519_PREFIX = Buffer.from("302e020100300506032b657004220420", "hex");
-
 export interface KeyPair {
   /** "ed25519:<base58 32-byte public key>" */
   publicKey: string;
@@ -104,13 +103,11 @@ export function keyPairFor(publicKey: string): KeyPair | undefined {
 /** Deterministic ed25519 key pair from an arbitrary label (e.g. `${seed}/agent/0`). */
 export function deriveKeyPair(label: string): KeyPair {
   const seed = sha256(`agentfuzz-key:${label}`);
-  const priv = createPrivateKey({ key: Buffer.concat([PKCS8_ED25519_PREFIX, seed]), format: "der", type: "pkcs8" });
-  const spki = createPublicKey(priv).export({ format: "der", type: "spki" });
-  const pub = new Uint8Array(spki.subarray(spki.length - 32));
+  const { publicKey: pub, sign } = ed25519FromSeed(seed);
   const kp: KeyPair = {
     publicKey: `ed25519:${base58Encode(pub)}`,
     secretKey: `ed25519:${base58Encode(Uint8Array.from([...seed, ...pub]))}`,
-    sign: (message) => new Uint8Array(edSign(null, message, priv)),
+    sign,
   };
   KEY_REGISTRY.set(kp.publicKey, kp);
   return kp;
@@ -118,16 +115,7 @@ export function deriveKeyPair(label: string): KeyPair {
 
 export function ed25519Verify(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): boolean {
   if (signature.length !== 64 || publicKey.length !== 32) return false;
-  try {
-    const key = createPublicKey({
-      key: Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), publicKey]),
-      format: "der",
-      type: "spki",
-    });
-    return edVerify(null, message, key, signature);
-  } catch {
-    return false;
-  }
+  return platformVerify(signature, message, publicKey);
 }
 
 /** NEAR account-id validation (nearcore rules). */
