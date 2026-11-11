@@ -12,8 +12,9 @@ browser playground (`make web && make serve-web`, or the Pages site), then the N
 | 0:30–0:50 | `make fuzz TARGET=naive:bug-window-lag` → `INV-1 BROKEN`, minimised repro (idle, then two transfers across a window boundary) | "It found a window-rollover bug and shrank it to a two-step repro." |
 | 0:50–1:05 | `make fuzz TARGET=reference`: all six invariants held; `make prompt TARGET=naive`: injected `rotate_key` drains the wallet | "The reference guard holds all six invariants. The naive one loses its whole balance to one poisoned email." |
 | 1:05–1:15 | Playground, **Fuzz a guard**: upload `artifacts/guard_naive__bug-window-lag.wasm`, INV-1 turns red with its repro | "The same engine runs in your browser. Upload a guard and watch it break." |
-| 1:15–1:20 | **Published scorecard** tab + testnet explorer showing the report hash | "Every score is hashed on NEAR testnet, so it can't be edited later. `agentfuzz verify` re-runs it." |
-| 1:20–1:30 | Repo URL, `agentfuzz fuzz --target your_guard.wasm` | "Run it on your guard." |
+| 1:15–1:22 | **Check a wallet** tab: `guard-naive.agentfuzz-28213.testnet` → audited, 6/6 broken; `guard-reference…` → 6/6 held | "Before an agent trusts another agent's wallet, it checks that exact build on-chain." |
+| 1:22–1:27 | **Published scorecard** tab + testnet explorer showing the report hash | "Every score is hashed on NEAR testnet, so it can't be edited later. `agentfuzz verify` re-runs it." |
+| 1:27–1:35 | Repo URL, `agentfuzz fuzz --target your_guard.wasm` | "Run it on your guard." |
 
 Tips: `NO_COLOR=1` for plain logs; `--runs 100` makes every command finish in about a second.
 
@@ -30,10 +31,12 @@ can't be edited afterwards.
 ## Live Testnet Evidence (for submission fields & demo)
 
 * **Scoreboard Contract**: `scoreboard.agentfuzz-28213.testnet` ([NearBlocks](https://testnet.nearblocks.io/address/scoreboard.agentfuzz-28213.testnet))
-* **Anchored Run ID**: `af-42-d7eb148fec6d`
-* **Scorecard SHA-256**: `d7eb148fec6d5f81a640766cc47eac0f97d9a0a2ff1f228741a570dc3a08971f`
-* **Anchor Transaction**: `3KBeqcSNmrh8nEuMFknvnTs2C53pWJiBj9z4rL3UcULb` ([NearBlocks Tx](https://testnet.nearblocks.io/txns/3KBeqcSNmrh8nEuMFknvnTs2C53pWJiBj9z4rL3UcULb))
-* **Verification Command**: `agentfuzz verify web/scorecard.json`
+* **Anchored Run ID**: `af-42-1bc8418489ff`
+* **Scorecard SHA-256**: `1bc8418489ff1d5b8f8645d05e462f4c8ba3dc1d7958790ecb6eb3719c81ed75`
+* **Anchor Transaction**: `4pXGiqfENhTzm8bSkFVa25Ko12XYz9uVr4hUgzzzNAzz` ([NearBlocks Tx](https://testnet.nearblocks.io/txns/4pXGiqfENhTzm8bSkFVa25Ko12XYz9uVr4hUgzzzNAzz))
+* **Guard Audits Transaction**: `8MwYZngBdAtP2SavNvpmQhpSNV4QD7MNJdeQKueXcskY` ([NearBlocks Tx](https://testnet.nearblocks.io/txns/8MwYZngBdAtP2SavNvpmQhpSNV4QD7MNJdeQKueXcskY)): reference `c6339bc44a6f…` 6/6 held, naive `180b735df942…` 6/6 broken
+* **Demo Guards**: `guard-reference.agentfuzz-28213.testnet` and `guard-naive.agentfuzz-28213.testnet` (run the audited builds)
+* **Verification Commands**: `agentfuzz verify web/scorecard.json` (re-runs the report, checks the record and both audits) · `agentfuzz check guard-naive.agentfuzz-28213.testnet`
 
 ## Submission checklist
 
@@ -48,7 +51,7 @@ can't be edited afterwards.
 - [ ] Form: tracks = AI Security & Defense, Agent Economy, Open Innovation; description 20–2,000 characters; Website field left empty
 - [ ] Submitted no later than Sat Nov 14, 20:00 MYT (deadline Nov 14, 23:59 UTC)
 - [ ] Scorecard page kept online through Nov 25 (GitHub Pages workflow `pages.yml`)
-- [ ] On the live Pages site: naive seed 42 / 200 runs shows 6/6 broken, reference 6/6 held, the window-lag upload breaks INV-1, the prompt tab shows 6 breaches on naive
+- [ ] On the live Pages site: naive seed 42 / 200 runs shows 6/6 broken, reference 6/6 held, the window-lag upload breaks INV-1, the prompt tab shows 9 breaches on naive (28 scenarios), Check a wallet shows guard-naive broken and guard-reference held
 - [ ] Re-read the live HACKATHON.md for last-minute rule changes
 
 ## Form description (≈900 characters)
@@ -64,4 +67,7 @@ in-process NEAR runtime, and is confirmed on a near-workspaces sandbox. Results 
 scorecard whose SHA-256 is anchored in a testnet scoreboard contract; `agentfuzz verify` re-runs
 it and recomputes the hash. All 7 planted bugs are found; the reference guard holds all 6
 invariants. A static web playground runs the same engine in the browser: fuzz any guard build or
-your own wasm, and run the prompt corpus, with results identical to the CLI.
+your own wasm, and run the prompt corpus, with results identical to the CLI. For the agent
+economy, the scoreboard also records an audit per guard build keyed by its code hash, so before an
+agent pays or delegates to another agent it can check that wallet's exact build on-chain
+(`agentfuzz check <account>`), and the corpus includes agent-to-agent attacks.

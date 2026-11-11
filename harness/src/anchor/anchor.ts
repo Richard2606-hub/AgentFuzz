@@ -20,7 +20,7 @@ import { deriveKeyPair, near } from "../near/keys.js";
 import { decodeValue, functionCall } from "../near/types.js";
 import { ARTIFACTS, REPO_ROOT } from "../targets/registry.js";
 import type { AnchorRecord, Scorecard } from "../report/scorecard.js";
-import type { AuditInput } from "./audit-lookup.js";
+import { DEMO_GUARDS, type AuditInput } from "./audit-lookup.js";
 
 export const DEFAULT_TESTNET_RPC = "https://test.rpc.fastnear.com";
 export const DEFAULT_SCOREBOARD = "agentfuzz-scoreboard.testnet";
@@ -231,11 +231,6 @@ export function anchorLocal(sc: Scorecard, outDir: string): AnchorRecord {
   return rec;
 }
 
-/** The two demo guards `agentfuzz check` points at: the same builds the scorecard audits. */
-export const DEMO_GUARDS = [
-  { prefix: "guard-reference", artifact: "guard_reference.wasm" },
-  { prefix: "guard-naive", artifact: "guard_naive.wasm" },
-] as const;
 
 /**
  * Deploy the reference and naive guard builds to sub-accounts of NEAR_ACCOUNT_ID, the way the test

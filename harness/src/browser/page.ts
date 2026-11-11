@@ -1,7 +1,9 @@
 /**
  * Playground page controller (bundled to web/playground.js). It owns the DOM and renders only what
- * the worker reports from real executions; it holds no results of its own.
+ * the worker reports from real executions (or, on the Check tab, reads from testnet); it holds no
+ * results of its own.
  */
+import { checkGuard, type CheckResult } from "../anchor/audit-lookup.js";
 import type { FromWorker, FuzzSummary, InvariantView, PromptView, ReproView, ScenarioInfo, TargetInfo, ToWorker } from "./protocol.js";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -296,6 +298,59 @@ $("cu-run").addEventListener("click", () => {
   job++;
   send({ type: "prompt-custom", job, target: $<HTMLSelectElement>("cu-target").value, document: document_, task: $<HTMLInputElement>("cu-task").value, apiKey, model: $<HTMLInputElement>("cu-model").value.trim() || undefined });
 });
+
+// ---------------------------------------------------------------- check tab (reads testnet)
+
+const VERDICTS: Record<CheckResult["verdict"], [string, string, string]> = {
+  clean: ["ok", "audited · held", "Every invariant held and no prompt attack breached it. Safe to trust with a budget, per this audit."],
+  broken: ["bad", "audited · broken", "Do not trust this guard with funds."],
+  incomplete: ["warn", "audited · incomplete", "Nothing broke, but not every invariant was exercised. Run a longer campaign."],
+  "not-audited": ["muted", "not audited", "No AgentFuzz report on this scoreboard covers this exact build. Fuzz it first."],
+  "no-contract": ["muted", "no contract", "This account has no contract deployed, so there is no guard to check."],
+};
+
+async function runCheck() {
+  const box = $("ck");
+  const input = $<HTMLInputElement>("ck-input").value.trim();
+  if (!input) return void ($("ck-status").textContent = "Enter a testnet account id or a 64-character code hash.");
+  const ref = /^[0-9a-f]{64}$/.test(input) ? { codeHash: input } : { accountId: input.toLowerCase() };
+  $("ck-status").textContent = "reading testnet…";
+  $("ck-result").innerHTML = "";
+  $<HTMLButtonElement>("ck-run").disabled = true;
+  try {
+    const r = await checkGuard(ref, { scoreboard: box.dataset.scoreboard, rpcUrl: box.dataset.rpc });
+    const [cls, label, text] = VERDICTS[r.verdict];
+    const a = r.latest;
+    $("ck-result").innerHTML = `<div class="repro">
+      <h4>${esc(r.accountId ?? "code hash")} ${badge(cls, label)}</h4>
+      ${r.verdict === "no-contract" ? "" : `<div class="small">code hash <span class="mono">${esc(r.codeHash)}</span> <span class="muted">(SHA-256 of the deployed wasm)</span></div>`}
+      ${
+        a
+          ? `<div style="margin:8px 0">${a.broken ? `<b class="badc">${a.broken}/${a.total} invariants broken</b> (${esc(a.broken_invariants.join(", "))})` : `<b class="okc">${a.held}/${a.total} invariants held</b>`} · prompt-injection breaches <b class="${a.prompt_breaches ? "badc" : "okc"}">${a.prompt_breaches}</b></div>
+             <div class="small muted">audited as <b>${esc(a.target)}</b> in report <span class="mono">${esc(a.run_id)}</span> (sha256 <span class="mono">${esc(a.report_sha256.slice(0, 16))}…</span>), submitted by ${esc(a.submitter)} at block ${esc(a.block_height)}${r.audits.length > 1 ? ` · ${r.audits.length} audits of this build on record, showing the latest` : ""}</div>`
+          : ""
+      }
+      <p>${esc(text)}</p>
+    </div>`;
+    $("ck-status").textContent = "read from testnet just now";
+  } catch (e) {
+    $("ck-status").textContent = `Error: ${e instanceof Error ? e.message : String(e)}`;
+  } finally {
+    $<HTMLButtonElement>("ck-run").disabled = false;
+  }
+}
+
+$<HTMLButtonElement>("ck-run").disabled = false;
+$("ck-run").addEventListener("click", runCheck);
+$("ck-input").addEventListener("keydown", (e) => {
+  if ((e as KeyboardEvent).key === "Enter") void runCheck();
+});
+document.querySelectorAll<HTMLButtonElement>(".ck-example").forEach((b) =>
+  b.addEventListener("click", () => {
+    $<HTMLInputElement>("ck-input").value = b.dataset.account ?? "";
+    void runCheck();
+  }),
+);
 
 // ---------------------------------------------------------------- CLI / CI builder
 

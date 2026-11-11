@@ -5,6 +5,7 @@
  * (browser/worker.ts) that runs the real engine on the committed wasm builds and prompt corpus,
  * and every number it shows comes from that execution. Build with `make web`.
  */
+import { demoGuardAccounts, PUBLISHED_SCOREBOARD, TESTNET_RPC } from "../anchor/audit-lookup.js";
 import type { Scorecard, TargetScore } from "./scorecard.js";
 
 const esc = (s: unknown) =>
@@ -145,10 +146,19 @@ export function renderScorecardHtml(sc: Scorecard): string {
     ? sc.anchors
         .map(
           (a) =>
-            `<li><b>${esc(a.network)}</b>${a.contractId ? ` · ${esc(a.contractId)}` : ""}${a.txHash ? ` · tx ${a.explorerUrl ? `<a href="${esc(a.explorerUrl)}" target="_blank" rel="noopener">${esc(a.txHash)}</a>` : esc(a.txHash)}` : ""}${a.note ? ` <span class="muted">(${esc(a.note)})</span>` : ""}</li>`,
+            `<li><b>${esc(a.network)}</b>${a.contractId ? ` · ${esc(a.contractId)}` : ""}${a.txHash ? ` · tx ${a.explorerUrl ? `<a href="${esc(a.explorerUrl)}" target="_blank" rel="noopener">${esc(a.txHash)}</a>` : esc(a.txHash)}` : ""}${a.note ? ` <span class="muted">(${esc(a.note)})</span>` : ""}${
+              a.audits?.length
+                ? `<div class="small">guard audits${a.auditTxHash ? ` (tx ${a.network === "testnet" ? `<a href="https://testnet.nearblocks.io/txns/${esc(a.auditTxHash)}" target="_blank" rel="noopener">${esc(a.auditTxHash.slice(0, 12))}…</a>` : esc(a.auditTxHash)})` : ""}: ${a.audits
+                    .map((x) => `${esc(x.target)} <span class="mono">${esc(x.codeHash.slice(0, 12))}…</span> ${x.broken ? `<span class="badc">${x.broken}/${x.total} broken</span>` : `<span class="okc">${x.held}/${x.total} held</span>`}`)
+                    .join(" · ")}</div>`
+                : ""
+            }</li>`,
         )
         .join("")
     : `<li class="muted">not anchored</li>`;
+  const testnet = sc.anchors.find((a) => a.network === "testnet" && a.contractId);
+  const scoreboard = testnet?.contractId ?? PUBLISHED_SCOREBOARD;
+  const examples = demoGuardAccounts(scoreboard);
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -162,6 +172,7 @@ export function renderScorecardHtml(sc: Scorecard): string {
 <div class="tabs-nav" role="tablist">
   <button class="tab-btn active" data-tab="fuzz">Fuzz a guard</button>
   <button class="tab-btn" data-tab="prompt">Prompt injection</button>
+  <button class="tab-btn" data-tab="check">Check a wallet</button>
   <button class="tab-btn" data-tab="scorecard">Published scorecard</button>
   <button class="tab-btn" data-tab="cli">Run it yourself</button>
 </div>
@@ -229,6 +240,30 @@ export function renderScorecardHtml(sc: Scorecard): string {
     <div class="field-box"><label for="cu-doc">Untrusted document</label><textarea id="cu-doc" rows="6" placeholder="Invoice #77 from bob.test.near, 1 NEAR. …"></textarea></div>
     <div class="btn-row"><button class="btn" id="cu-run" disabled>Ask the model and execute</button><span class="muted small" id="cu-status"></span></div>
     <div id="cu-results"></div>
+  </section>
+</div>
+
+<!-- TAB: CHECK -->
+<div id="tab-check" class="tab-content">
+  <section class="card" id="ck" data-scoreboard="${esc(scoreboard)}" data-rpc="${esc(TESTNET_RPC)}">
+    <div class="card-head"><div>
+      <h3>Before your agent trusts a wallet, check its guard</h3>
+      <p class="muted small">Agents that pay or delegate budgets to other agents need to know the wallet guard on the other side holds up. Every NEAR account exposes the SHA-256 of the contract it runs (its code hash), and the AgentFuzz scoreboard on testnet records an audit for each guard build it tested: invariants held and broken, prompt-injection breaches, and the report hash anyone can re-run. This tab reads both straight from testnet, from your browser.</p>
+    </div></div>
+    <div class="controls">
+      <div class="field-box wide"><label for="ck-input">Testnet account or code hash</label><input type="text" id="ck-input" placeholder="guard-reference.agentfuzz-28213.testnet" spellcheck="false"></div>
+      <div class="field-box"><label>Scoreboard</label><div class="mono small" style="padding:8px 0">${esc(scoreboard)}</div></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="ck-run" disabled>Check on-chain</button>
+      ${examples.map((e) => `<button class="btn secondary ck-example" data-account="${esc(e)}">${esc(e.split(".")[0])}</button>`).join("\n      ")}
+      <span class="muted small" id="ck-status"></span>
+    </div>
+    <div id="ck-result"></div>
+    <h4>From an agent or CI</h4>
+    <pre><code># exit code: 0 clean · 2 broken · 3 not audited · 4 no contract · 5 incomplete
+node bin/agentfuzz.mjs check ${esc(examples[0] ?? "guard.your-account.testnet")}</code></pre>
+    <p class="muted small">An audit is a claim by its submitter; it names a report that <code>agentfuzz verify</code> re-runs to the same hash. Pass <code>--trust account.testnet</code> to count only submitters you trust.</p>
   </section>
 </div>
 

@@ -122,7 +122,9 @@ export async function cmdVerify(positional: string[], flags: Flags): Promise<num
     console.log(`  ${ok(r.reproduced)} deterministic re-run ${r.reproduced ? "reproduced the identical hash" : `produced ${r.recomputedSha256}`}`);
   for (const o of r.onchain)
     console.log(`  ${ok(o.matches)} on-chain record on ${o.network} ${o.contractId ?? ""} ${o.matches ? "matches" : o.error ? `unreadable (${o.error})` : `has ${o.sha256 ?? "nothing"}`}`);
-  const pass = r.bodyIntact && (r.reproduced ?? true) && r.onchain.every((o) => o.matches);
+  for (const a of r.audits)
+    console.log(`  ${ok(a.matches)} on-chain audit of ${a.target} (code hash ${a.codeHash.slice(0, 12)}…) ${a.matches ? "matches" : a.error ?? "differs from this scorecard"}`);
+  const pass = r.bodyIntact && (r.reproduced ?? true) && r.onchain.every((o) => o.matches) && r.audits.every((a) => a.matches);
   console.log(pass ? c.green("\n  verified") : c.red("\n  verification FAILED"));
   return pass ? 0 : 1;
 }

@@ -8,6 +8,7 @@ import { anchorLocal, anchorNearsim, anchorTestnet, readTestnetRecord, testnetCo
 import { loadCorpus, makePlanner, runPromptCampaign } from "./prompt-runner.js";
 import { renderScorecardHtml } from "./report/html.js";
 import { buildScorecard, hashBody, targetScore, type AnchorRecord, type Scorecard, type ScorecardSettings, type TargetScore } from "./report/scorecard.js";
+import { auditsOf, TESTNET_RPC } from "./anchor/audit-lookup.js";
 import { DEFAULT_GENERATOR, parseGenerator, type GeneratorVersion } from "./generators/contract.js";
 import { runCampaign } from "./runner.js";
 import { sha256Hex } from "./near/keys.js";
@@ -131,6 +132,8 @@ export interface VerifyResult {
   corpusMatches: boolean;
   wasmMismatches: string[];
   onchain: { network: string; contractId?: string; sha256?: string; matches: boolean; error?: string }[];
+  /** Per guard build: is there an on-chain audit from this run that matches the scorecard? */
+  audits: { network: string; target: string; codeHash: string; matches: boolean; error?: string }[];
 }
 
 /** Check a scorecard: body hash, deterministic re-run, and on-chain anchors. */
@@ -144,6 +147,7 @@ export async function verifyScorecard(file: string, opts: { rerun: boolean; log?
     corpusMatches: corpusSha256() === sc.body.settings.corpusSha256,
     wasmMismatches: sc.body.targets.filter((t) => loadTarget(t.name).wasmSha256 !== t.wasmSha256).map((t) => t.name),
     onchain: [],
+    audits: [],
   };
   if (opts.rerun) {
     if (sc.body.settings.planner === "llm") throw new Error("scorecards produced with the live LLM planner are not deterministic; re-run with --no-rerun");
@@ -158,6 +162,19 @@ export async function verifyScorecard(file: string, opts: { rerun: boolean; log?
       res.onchain.push({ network: a.network, contractId: a.contractId, sha256: rec?.sha256, matches: rec?.sha256 === sc.sha256 });
     } catch (e) {
       res.onchain.push({ network: a.network, contractId: a.contractId, matches: false, error: e instanceof Error ? e.message : String(e) });
+    }
+    // Anchors made before guard audits existed carry no `audits`; nothing to check for them.
+    if (!a.audits?.length) continue;
+    for (const t of sc.body.targets) {
+      try {
+        const list = await auditsOf(t.wasmSha256, a.contractId, process.env.NEAR_RPC_URL ?? TESTNET_RPC);
+        const mine = list.find((x) => x.run_id === sc.runId);
+        const matches =
+          !!mine && mine.report_sha256 === sc.sha256 && mine.held === t.summary.held && mine.broken === t.summary.broken && mine.total === t.summary.total && mine.prompt_breaches === t.summary.promptBreaches;
+        res.audits.push({ network: a.network, target: t.name, codeHash: t.wasmSha256, matches, error: mine ? undefined : "no audit from this run" });
+      } catch (e) {
+        res.audits.push({ network: a.network, target: t.name, codeHash: t.wasmSha256, matches: false, error: e instanceof Error ? e.message : String(e) });
+      }
     }
   }
   return res;

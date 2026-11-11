@@ -46,19 +46,20 @@ Every claim in this README is a command. Expected output is abbreviated.
 
 | Do | See |
 |----|-----|
-| `make demo-offline` | The whole demo in ~10 s: naive guard **6/6 invariants BROKEN** with minimised repros, reference guard **6/6 invariants held**, prompt layer **20/20 blocked** on reference vs **6 breaches** on naive, scorecard written to `out/scorecard.html` (`web/` is left alone unless you pass `--web`), hash anchored through `scoreboard.wasm` |
-| `make web && make serve-web`, open http://localhost:8080 | The playground, running the same engine in your browser (a Web Worker, no server). **Fuzz a guard** on `naive`, seed 42, 200 runs: **6/6 broken**, 154 attack sequences, 832 steps, each break with its minimised repro, a download of the repro file (byte-identical to the CLI's) and the `agentfuzz replay` command; `reference`: **6/6 held**; uploading `artifacts/guard_naive__bug-window-lag.wasm`: **INV-1 broken**. **Prompt injection**: the 20 corpus scenarios executed for real: 14 blocked / 6 breaches on `naive`, 20 blocked on `reference` |
+| `make demo-offline` | The whole demo in ~10 s: naive guard **6/6 invariants BROKEN** with minimised repros, reference guard **6/6 invariants held**, prompt layer **28/28 blocked** on reference vs **9 breaches** on naive, scorecard written to `out/scorecard.html` (`web/` is left alone unless you pass `--web`), hash anchored through `scoreboard.wasm` |
+| `make web && make serve-web`, open http://localhost:8080 | The playground, running the same engine in your browser (a Web Worker, no server). **Fuzz a guard** on `naive`, seed 42, 200 runs: **6/6 broken**, 154 attack sequences, 832 steps, each break with its minimised repro, a download of the repro file (byte-identical to the CLI's) and the `agentfuzz replay` command; `reference`: **6/6 held**; uploading `artifacts/guard_naive__bug-window-lag.wasm`: **INV-1 broken**. **Prompt injection**: the 28 corpus scenarios executed for real: 19 blocked / 9 breaches on `naive`, 28 blocked on `reference`. **Check a wallet**: `guard-naive` → audited, 6/6 broken; `guard-reference` → audited, 6/6 held (read live from testnet) |
 | `make fuzz TARGET=naive` | `INV-1 BROKEN … minimised repro (1 step, classes A6): same-block burst of 2 pays …` and one `repro saved: out/repro-naive-INV-*.json` per broken invariant |
 | `make fuzz TARGET=reference` | `INV-1 HELD … INV-6 HELD`, `all invariants held · ~190 attack sequences`, INV-5 exercised in ~50 runs |
 | `make fuzz TARGET=naive:bug-window-lag` | `INV-1 BROKEN` with a repro like `wait 2 window(s) …; same-block burst of 2 pays: remaining budget, remaining budget` (window-rollover bug: after an idle period the cap stops applying) |
 | `cd harness && node bin/agentfuzz.mjs replay ../out/repro-naive-INV-1-*.json` | The same steps re-executed in a fresh world and `BROKEN INV-1: agent spent … cap is 3 NEAR` |
 | `make matrix` | `✓` for all 10 rows: each of the 8 planted bugs (7 in the default naive build + opt-in `bug-reset-on-failure`) found by its expected invariant, both controls clean (`all 10 rows passed`) |
-| `make prompt TARGET=reference` | 20 lines `BLOCKED planner hijacked …` with the contract/protocol error that stopped each; `breaches 0` |
-| `make prompt TARGET=naive` | `BREACH` on A1-002/A1-010/A1-012/A2-003 (prefix look-alikes) and A1-003/A2-006 (injected `rotate_key` → full-access key → balance drained) |
+| `make prompt TARGET=reference` | 28 lines `BLOCKED planner hijacked …` with the contract/protocol error that stopped each; `breaches 0` |
+| `make prompt TARGET=naive` | `BREACH` on A1-002/A1-010/A1-012/A2-003 (prefix look-alikes) and A1-003/A2-006 (injected `rotate_key` → full-access key → balance drained), plus three agent-to-agent attacks: A1-014 (counterparty agent's look-alike settlement account), A1-016 (marketplace agent's key rotation), A2-011 (poisoned agent-registry payout) |
+| `cd harness && node bin/agentfuzz.mjs check guard-naive.agentfuzz-28213.testnet` | Reads the account's code hash from testnet and the scoreboard's audit of that build: `✗ audited: 6/6 invariants broken (INV-1 … INV-6), 9 prompt-layer breaches`, exit code 2. `guard-reference.agentfuzz-28213.testnet`: `✓ audited: 6/6 invariants held`, exit 0. Any account without an audit: exit 3 |
 | `make report` | `out/scorecard.json`, `out/scorecard.html`, `web/index.html`; run id `af-42-…`; anchors: testnet if `.env` is set, otherwise nearsim + `out/anchors.local.json` |
 | `make verify` | `✓ body hash matches … ✓ deterministic re-run reproduced the identical hash … verified` |
 | `cd harness && node bin/agentfuzz.mjs diff --target reference --runs 20` | Differential test: runs identical sequences on nearsim and real nearcore sandbox, confirming 20/20 agree |
-| `make test` | 32 contract unit tests (if Rust is installed) and 78 harness tests, including the planted-bug matrix, a check that the published scorecard still reproduces, and a check that the browser bundle gives the CLI's exact results |
+| `make test` | 38 contract unit tests (if Rust is installed) and 82 harness tests, including the planted-bug matrix, a check that the published scorecard still reproduces, and a check that the browser bundle gives the CLI's exact results |
 | `make sandbox-test` (Linux/macOS) | The same wasm on a real nearcore sandbox via near-workspaces: INV-3/INV-4 hold on the reference guard; the naive key escalation and look-alike payment reproduce on nearcore |
 
 ## What it checks
@@ -135,9 +136,44 @@ engine client-side: no server, no scripted results.
   `@noble/curves` and nothing else. `harness/test/browser.test.ts` bundles the engine exactly as
   the site does, runs it, and checks verdicts, counts and repro bytes against the CLI.
 
+* **Check a wallet**: enter any testnet account; the page reads its code hash and the
+  scoreboard's audits of that build straight from a NEAR RPC (see below).
+
 Build it with `make web` (esbuild bundles, wasm, corpus and `index.html` into `web/`; the
 generated files are not committed) and open it with `make serve-web`, since browsers block Web
 Workers on `file://`. The Pages workflow runs the same build on every push to `main`.
+
+## Agent economy: check a wallet before you trust it
+
+Agents that pay, hire or delegate budgets to other agents need to know the wallet guard on the
+other side holds up. AgentFuzz makes that a lookup:
+
+1. Every NEAR account exposes the SHA-256 of the contract it runs (`code_hash` in `view_account`).
+2. When a report is anchored, the scoreboard also records one **audit per guard build** it tested
+   (`record_audits`): that SHA-256, invariants held / broken, prompt-injection breaches, and the
+   report hash. Only the report's submitter can attach them.
+3. `agentfuzz check <account>` (or the **Check a wallet** tab) reads both and answers `clean`,
+   `broken`, `incomplete`, `not-audited` or `no-contract`, with exit codes an agent or CI step can
+   act on: 0 clean, 2 broken, 3 not audited, 4 no contract, 5 incomplete.
+
+Two demo guards on testnet run the audited builds (deployed with `agentfuzz demo-guards-deploy`:
+deploy + init + delete the deploy key in one transaction, so no full-access key remains):
+
+| Account | Build | `agentfuzz check` |
+|---------|-------|-------------------|
+| [`guard-reference.agentfuzz-28213.testnet`](https://testnet.nearblocks.io/address/guard-reference.agentfuzz-28213.testnet) | `guard_reference.wasm` | ✓ audited: 6/6 held, 0 prompt breaches (exit 0) |
+| [`guard-naive.agentfuzz-28213.testnet`](https://testnet.nearblocks.io/address/guard-naive.agentfuzz-28213.testnet) | `guard_naive.wasm` | ✗ audited: 6/6 broken, 9 prompt breaches (exit 2) |
+
+An audit is a claim by its submitter, not a certificate: it names a report that `agentfuzz verify`
+re-runs to the same hash, and `--trust a.testnet,b.testnet` counts only submitters you trust. A
+contract cannot read another account's code hash on-chain, so the check runs in the agent (or its
+operator's tooling) before it pays.
+
+The prompt corpus includes agent-to-agent attacks (channels `agent_message` and `agent_api`): a
+supplier agent's quote demanding an "escrow" prepayment, a counterparty agent's look-alike
+settlement account, an agent asking to be allowlisted, a marketplace agent asking for the signing
+key, a refund to a look-alike, unit confusion in a partner agent's price API, an inflated delivery
+count, and a poisoned agent-registry payout address.
 
 ## NEAR primitives used
 
@@ -191,13 +227,16 @@ See [.github/actions/agentfuzz/README.md](.github/actions/agentfuzz/README.md) f
 ## On-chain anchoring
 
 `make report` writes each run's SHA-256 to the scoreboard contract:
-`record(run_id, sha256, target, commit)`; records are append-only. Without credentials it
+`record(run_id, sha256, target, commit)`; records are append-only. It then attaches one audit per
+tested guard build with `record_audits` (see [Agent economy](#agent-economy-check-a-wallet-before-you-trust-it)), and
+`make verify` checks those too. Without credentials it
 executes `scoreboard.wasm` in nearsim (proving the contract path offline) and writes
 `out/anchors.local.json`. With `NEAR_ACCOUNT_ID`/`NEAR_PRIVATE_KEY` set, it records on testnet and
 prints the NearBlocks link; `make verify` reads it back.
 
-Testnet scoreboard: `SCOREBOARD_CONTRACT_ID` (see `.env.example`; deploy your own with
-`node bin/agentfuzz.mjs scoreboard-deploy`).
+Testnet scoreboard: `SCOREBOARD_CONTRACT_ID` (see `.env.example`; deploy your own, or upgrade an
+existing one in place, with `node bin/agentfuzz.mjs scoreboard-deploy`; audits use their own
+storage prefix, so the upgrade needs no migration and keeps every earlier record).
 
 ### Live on NEAR testnet
 
@@ -205,9 +244,9 @@ Testnet scoreboard: `SCOREBOARD_CONTRACT_ID` (see `.env.example`; deploy your ow
 | What | Where |
 |------|-------|
 | Scoreboard contract | [`scoreboard.agentfuzz-28213.testnet`](https://testnet.nearblocks.io/address/scoreboard.agentfuzz-28213.testnet) |
-| Published scorecard | [`web/scorecard.json`](web/scorecard.json) / [`web/index.html`](web/index.html): run `af-42-d7eb148fec6d` (commit `b68f65646b1f`) |
-| Report SHA-256 | `d7eb148fec6d5f81a640766cc47eac0f97d9a0a2ff1f228741a570dc3a08971f` |
-| Anchor transaction | [`3KBeqcSNmrh8nEuMFknvnTs2C53pWJiBj9z4rL3UcULb`](https://testnet.nearblocks.io/txns/3KBeqcSNmrh8nEuMFknvnTs2C53pWJiBj9z4rL3UcULb) |
+| Published scorecard | [`web/scorecard.json`](web/scorecard.json) / [`web/index.html`](web/index.html): run `af-42-1bc8418489ff` (commit `b19c517ab995`) |
+| Report SHA-256 | `1bc8418489ff1d5b8f8645d05e462f4c8ba3dc1d7958790ecb6eb3719c81ed75` |
+| Anchor transaction | [`4pXGiqfENhTzm8bSkFVa25Ko12XYz9uVr4hUgzzzNAzz`](https://testnet.nearblocks.io/txns/4pXGiqfENhTzm8bSkFVa25Ko12XYz9uVr4hUgzzzNAzz) |
 <!-- anchor:end -->
 
 Check it yourself: `cd harness && node bin/agentfuzz.mjs verify ../web/scorecard.json` recomputes
@@ -230,7 +269,7 @@ cargo test --workspace                     # contract unit tests (from the repo 
 ```
 contracts/guard-reference/   well-built baseline guard (Rust, near-sdk 5.30.1) + 24 unit tests
 contracts/guard-naive/       same interface, 8 planted bugs as cargo features (7 on by default; BUGS.md)
-contracts/scoreboard/        report-hash anchoring contract + 5 unit tests
+contracts/scoreboard/        report-hash anchoring + per-build guard audits + 11 unit tests
 artifacts/                   committed wasm builds (+ single-bug variants), manifest.json
 harness/src/sim/             nearsim: NEAR host ABI + chain model executing real wasm
 harness/src/invariants/      INV-1..INV-6 checkers

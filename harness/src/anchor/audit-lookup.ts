@@ -12,6 +12,17 @@ import { toBase64, toHex } from "../util/bytes.js";
 export const PUBLISHED_SCOREBOARD = "scoreboard.agentfuzz-28213.testnet";
 export const TESTNET_RPC = "https://test.rpc.fastnear.com";
 
+/** The demo guards deployed by `agentfuzz demo-guards-deploy` as sub-accounts of the scoreboard's parent. */
+export const DEMO_GUARDS = [
+  { prefix: "guard-reference", artifact: "guard_reference.wasm" },
+  { prefix: "guard-naive", artifact: "guard_naive.wasm" },
+] as const;
+
+/** Demo guard account ids next to a scoreboard deployed as scoreboard.<parent>. */
+export function demoGuardAccounts(scoreboard: string): string[] {
+  return scoreboard.startsWith("scoreboard.") ? DEMO_GUARDS.map((g) => `${g.prefix}.${scoreboard.slice("scoreboard.".length)}`) : [];
+}
+
 export interface GuardAudit {
   code_hash: string;
   target: string;
@@ -46,7 +57,11 @@ async function rpc(url: string, method: string, params: unknown): Promise<any> {
   });
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
   const body = (await res.json()) as { result?: any; error?: { cause?: { name?: string }; data?: string; message?: string } };
-  if (body.error) throw new Error(body.error.cause?.name ?? body.error.data ?? body.error.message ?? "RPC error");
+  if (body.error) {
+    const name = body.error.cause?.name;
+    if (name === "UNKNOWN_ACCOUNT") throw new Error(`account ${(params as { account_id?: string }).account_id ?? ""} does not exist on this network`);
+    throw new Error(name ?? body.error.data ?? body.error.message ?? "RPC error");
+  }
   if (body.result?.error) throw new Error(String(body.result.error));
   return body.result;
 }
