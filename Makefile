@@ -8,7 +8,7 @@ SEED   ?= 42
 RUNS   ?= 200
 AF     := cd harness && node bin/agentfuzz.mjs
 
-.PHONY: help setup build build-check test test-contracts test-harness fuzz prompt matrix demo-offline report verify replay sandbox-test clean
+.PHONY: help setup build build-check test test-contracts test-harness fuzz prompt matrix demo-offline report verify replay sandbox-test web serve-web clean
 
 help:
 	@echo "make setup          install harness dependencies (npm ci)"
@@ -22,6 +22,8 @@ help:
 	@echo "make report         scorecard JSON + HTML (web/), report hash anchored (testnet if .env set, else nearsim)"
 	@echo "make verify         re-run out/scorecard.json deterministically and check its hash"
 	@echo "make sandbox-test   near-workspaces integration tests on a real nearcore sandbox (Linux/macOS)"
+	@echo "make web            build the static site + browser playground into web/ (esbuild; no re-run, no anchoring)"
+	@echo "make serve-web      serve web/ at http://localhost:8080 (needs make web first)"
 
 setup:
 	cd harness && npm ci
@@ -69,5 +71,11 @@ replay:
 sandbox-test:
 	cargo test --manifest-path tests/sandbox/Cargo.toml -- --nocapture
 
+web:
+	node scripts/build-web.mjs
+
+serve-web:
+	node scripts/serve-web.mjs 8080
+
 clean:
-	rm -rf out target harness/node_modules
+	rm -rf out target harness/node_modules web/playground.js web/playground-worker.js web/corpus.json web/wasm

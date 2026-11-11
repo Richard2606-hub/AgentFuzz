@@ -44,6 +44,8 @@ jobs:
         run: node bin/agentfuzz.mjs demo-offline --seed 42 --runs 100 --no-web
       - name: scorecard is reproducible
         run: node bin/agentfuzz.mjs verify ../out/scorecard.json
+      - name: browser playground builds (fails if a bundle pulls in Node-only code)
+        run: node ../scripts/build-web.mjs
       - uses: actions/upload-artifact@v4
         if: matrix.node == 22 && matrix.os == 'ubuntu-latest'
         with:

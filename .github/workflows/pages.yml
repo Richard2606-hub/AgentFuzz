@@ -1,10 +1,12 @@
 name: pages
 
-# Publishes the static scorecard in web/ (written by `make report`) to GitHub Pages.
+# Publishes web/ to GitHub Pages: the scorecard (web/scorecard.json + index.html, written by
+# `make report`) and the browser playground, which is built here by scripts/build-web.mjs from the
+# harness sources, the committed wasm in artifacts/ and the prompt corpus.
 on:
   push:
     branches: [main]
-    paths: ["web/**"]
+    paths: ["web/**", "harness/src/**", "harness/package*.json", "artifacts/**", "corpus/**", "scripts/build-web.mjs", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -24,6 +26,16 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: harness/package-lock.json
+      - name: install harness dependencies
+        working-directory: harness
+        run: npm ci
+      - name: build the playground (bundles, wasm, corpus, index.html)
+        run: node scripts/build-web.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
