@@ -7,6 +7,11 @@ prompt-injection attacks** and **property-based contract fuzzing** at a guard co
 reports which safety properties held, as a scorecard anyone can re-run, with the report's SHA-256
 anchored on-chain so a published score can't be quietly edited.
 
+For everyone else, the top of the [website](https://richard2606-hub.github.io/AgentFuzz) asks
+**"Is my NEAR wallet safe?"**: type an account and get a green, yellow or red answer in plain
+words (who can move the money, fake look-alike names, connected apps), plus a way to check what a
+transaction really does before signing it. No wallet connection, nothing to sign.
+
 Built for the NEAR Hackathon (Nov 2026) · tracks: **AI Security & Defense** (primary), Agent
 Economy, Open Innovation · MIT licence.
 
@@ -61,7 +66,7 @@ Every claim in this README is a command. Expected output is abbreviated.
 | `cd harness && node bin/agentfuzz.mjs diff --target reference --runs 20` | Differential test: runs identical sequences on nearsim and real nearcore sandbox, confirming 20/20 agree |
 | `cd harness && node bin/agentfuzz.mjs scan wrap-near.near` | Reads the mainnet account and flags it: `✗ Looks like wrap.near (Wrapped NEAR (wNEAR)), but is a different account`, exit code 2. Try your own account: risky keys are `!` (exit 3), nothing risky exits 0 |
 | `cd harness && node bin/agentfuzz.mjs simulate --signer guard-naive.agentfuzz-28213.testnet --to guard-naive.agentfuzz-28213.testnet --call rotate_key --args '{"new_public_key":"ed25519:8az9oB8mcn3DBYDCg6v32JhSsktcWdGwp8D5x9mU1aLo"}' --gas 60` | Forks testnet, runs the deployed naive guard's real wasm on its live state: `Adds a full-access key … Removes the key …`, `✗ Gives someone full control of your account`, exit code 2. `--to wrap-near.near --transfer 1 --signer root.near`: `✗ Receiver wrap-near.near: looks like wrap.near` |
-| `make test` | 38 contract unit tests (if Rust is installed) and 113 harness tests, including the planted-bug matrix, a check that the published scorecard still reproduces, a check that the browser bundle gives the CLI's exact results, and the site's data policy (CSP, allowed hosts, no storage) |
+| `make test` | 38 contract unit tests (if Rust is installed) and 121 harness tests, including the planted-bug matrix, a check that the published scorecard still reproduces, a check that the browser bundle gives the CLI's exact results, and the site's data policy (CSP, allowed hosts, no storage) |
 | `make sandbox-test` (Linux/macOS) | The same wasm on a real nearcore sandbox via near-workspaces: INV-3/INV-4 hold on the reference guard; the naive key escalation and look-alike payment reproduce on nearcore |
 
 ## What it checks
@@ -140,7 +145,9 @@ engine client-side: no server, no scripted results.
 
 * **Check a wallet**: enter any testnet account; the page reads its code hash and the
   scoreboard's audits of that build straight from a NEAR RPC (see below).
-* **Account safety**: a safety scan of any mainnet or testnet account, for every NEAR user (see
+* **"Is my NEAR wallet safe?"** (the box at the top): the account scan in everyday words, with a
+  green / yellow / red light, what each problem means for the money, and what to do about it.
+* **Account safety**: the same scan with full technical details (see
   [Account safety](#account-safety-for-every-near-user)). Deep link: `…/#scan`.
 * **Simulate before you sign**: run a transaction on a fork of mainnet or testnet in the browser
   and see what it would really do (see [Simulate before you sign](#simulate-before-you-sign)).
@@ -187,7 +194,11 @@ count, and a poisoned agent-registry payout address.
 Most NEAR users will never deploy a guard, but every one of them has access keys and sends money
 to account names. `agentfuzz scan <account>` (or the **Account safety** tab) reads any mainnet or
 testnet account (`.testnet` names go to testnet, everything else to mainnet) and reports, in plain
-words:
+words. The box at the top of the website shows the same scan without any jargon
+(`harness/src/account/everyday.ts`, tested to never say "full-access key", "allowance" or
+"invariant"): a traffic light, a headline such as "No problems found" or "Warning: problems
+found", one sentence per problem saying what it means for the money and what to do, and a
+reminder that no check can see a stolen seed phrase.
 
 | Area | What it flags |
 |------|---------------|

@@ -13,7 +13,7 @@ browser playground (`make web && make serve-web`, or the Pages site), then the N
 | 0:50–1:05 | `make fuzz TARGET=reference`: all six invariants held; `make prompt TARGET=naive`: injected `rotate_key` drains the wallet | "The reference guard holds all six invariants. The naive one loses its whole balance to one poisoned email." |
 | 1:05–1:15 | Playground, **Fuzz a guard**: upload `artifacts/guard_naive__bug-window-lag.wasm`, INV-1 turns red with its repro | "The same engine runs in your browser. Upload a guard and watch it break." |
 | 1:15–1:22 | **Check a wallet** tab: `guard-naive.agentfuzz-28213.testnet` → audited, 6/6 broken; `guard-reference…` → 6/6 held | "Before an agent trusts another agent's wallet, it checks that exact build on-chain." |
-| 1:22–1:27 | **Account safety** tab: `wrap-near.near` → danger, looks like `wrap.near` | "And for every NEAR user: paste any account, see who can move its money and whether it's who it looks like." |
+| 1:22–1:27 | Top box **"Is my NEAR wallet safe?"**: type a normal account → green "No problems found"; click `wrap-near.near` → red "This name imitates wrap.near … very likely a scam" | "And for every NEAR user: type your account, get a plain answer." |
 | 1:27–1:35 | **Simulate before you sign**: click "agent key installs a full-access key" → danger, the real guard code adds a full-access key | "Before you sign, run it: the real contract, on today's state, in your browser." |
 | 1:35–1:40 | **Published scorecard** tab + testnet explorer showing the report hash | "Every score is hashed on NEAR testnet, so it can't be edited later. `agentfuzz verify` re-runs it." |
 | 1:40–1:45 | Repo URL, `agentfuzz fuzz --target your_guard.wasm` | "Run it on your guard." |
@@ -53,7 +53,7 @@ can't be edited afterwards.
 - [ ] Form: tracks = AI Security & Defense, Agent Economy, Open Innovation; description 20–2,000 characters; Website field left empty
 - [ ] Submitted no later than Sat Nov 14, 20:00 MYT (deadline Nov 14, 23:59 UTC)
 - [ ] Scorecard page kept online through Nov 25 (GitHub Pages workflow `pages.yml`)
-- [ ] On the live Pages site: naive seed 42 / 200 runs shows 6/6 broken, reference 6/6 held, the window-lag upload breaks INV-1, the prompt tab shows 9 breaches on naive (28 scenarios), Check a wallet shows guard-naive broken and guard-reference held, Account safety shows wrap-near.near as a look-alike (danger) and guard-reference as nothing risky, Simulate shows the naive rotate_key adding a full-access key (danger) and the reference payment succeeding, the Privacy & security notice lists four hosts, and the browser console shows no CSP violations
+- [ ] On the live Pages site: naive seed 42 / 200 runs shows 6/6 broken, reference 6/6 held, the window-lag upload breaks INV-1, the prompt tab shows 9 breaches on naive (28 scenarios), Check a wallet shows guard-naive broken and guard-reference held, Account safety shows wrap-near.near as a look-alike (danger) and guard-reference as nothing risky, Simulate shows the naive rotate_key adding a full-access key (danger) and the reference payment succeeding, the top box answers green for a normal account and red for wrap-near.near, the Privacy & security notice lists four hosts, and the browser console shows no CSP violations
 - [ ] Re-read the live HACKATHON.md for last-minute rule changes
 
 ## Form description (≈900 characters)
@@ -73,7 +73,8 @@ your own wasm, and run the prompt corpus, with results identical to the CLI. For
 economy, the scoreboard also records an audit per guard build keyed by its code hash, so before an
 agent pays or delegates to another agent it can check that wallet's exact build on-chain
 (`agentfuzz check <account>`), and the corpus includes agent-to-agent attacks. For every NEAR
-user, an account safety scan reads any mainnet or testnet account and flags risky access keys,
+user, the site opens with "Is my NEAR wallet safe?": an account safety scan, in plain words with a
+traffic light, that reads any mainnet or testnet account and flags risky access keys,
 look-alike names and audited-but-broken contracts (`agentfuzz scan <account>`), and "simulate
 before you sign" runs any transaction's real contract code on a fork of mainnet or testnet in the
 browser and explains what it would do (`agentfuzz simulate`).

@@ -5,6 +5,7 @@
  */
 import { checkGuard, type CheckResult } from "../anchor/audit-lookup.js";
 import { scanAccount, type Network, type ScanResult, type Severity } from "../account/scan.js";
+import { everydaySummary } from "../account/everyday.js";
 import { fmtNear } from "../near/keys.js";
 import type { SimulationResult } from "../simulate/simulate.js";
 import type { FromWorker, FuzzSummary, InvariantView, PromptView, ReproView, ScenarioInfo, TargetInfo, ToWorker } from "./protocol.js";
@@ -430,6 +431,66 @@ document.querySelectorAll<HTMLButtonElement>(".sc-example").forEach((b) =>
     $<HTMLInputElement>("sc-input").value = b.dataset.account ?? "";
     $<HTMLSelectElement>("sc-network").value = "";
     void runScan();
+  }),
+);
+
+// ---------------------------------------------------------------- front box: "Is my NEAR wallet safe?" (everyday words)
+
+let heroLast: string | undefined;
+async function runHero() {
+  const input = $<HTMLInputElement>("hero-input").value.trim();
+  const out = $("hero-result");
+  if (!input) {
+    out.innerHTML = `<p class="small">Type your NEAR account name, for example <b>yourname.near</b>.</p>`;
+    return;
+  }
+  $<HTMLButtonElement>("hero-run").disabled = true;
+  out.innerHTML = `<p class="small muted">Reading ${esc(input)} from the NEAR blockchain…</p>`;
+  try {
+    const r = await scanAccount(input);
+    const e = everydaySummary(r);
+    heroLast = r.accountId;
+    out.innerHTML = `<div class="verdict-box ${e.light}">
+      <div class="verdict-head"><span class="light ${e.light}" aria-hidden="true"></span><span>${esc(e.headline)}</span><span class="verdict-sub">${esc(r.accountId)} · ${esc(r.network)}${e.balance ? ` · balance ${esc(e.balance)}` : ""}</span></div>
+      ${e.points.length ? `<ul>${e.points.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}
+      <p class="small muted">${esc(e.limits)}</p>
+      ${r.exists ? `<button class="linkbtn small" id="hero-details">See the full technical details →</button>` : ""}
+    </div>`;
+    $("hero-details")?.addEventListener("click", () => {
+      $<HTMLInputElement>("sc-input").value = heroLast ?? "";
+      $<HTMLSelectElement>("sc-network").value = "";
+      void runScan();
+      openTab("scan");
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    out.innerHTML = `<div class="verdict-box missing"><div class="verdict-head"><span class="light missing"></span><span>${/not a valid NEAR account id/.test(msg) ? "That is not a NEAR account name" : "Could not check right now"}</span></div><p class="small">${esc(/not a valid NEAR account id/.test(msg) ? "NEAR account names use lowercase letters, numbers, - _ and dots, like yourname.near." : `${msg}. Please try again in a moment.`)}</p></div>`;
+  } finally {
+    $<HTMLButtonElement>("hero-run").disabled = false;
+  }
+}
+
+/** Switch to a tab and bring it into view (also when its #hash is already in the address bar). */
+function openTab(name: string) {
+  document.querySelector<HTMLButtonElement>(`.tab-btn[data-tab="${name}"]`)?.click();
+  document.querySelector(".tabs-nav")?.scrollIntoView({ behavior: "smooth" });
+}
+
+$<HTMLButtonElement>("hero-run").disabled = false;
+$("hero-run").addEventListener("click", () => void runHero());
+$("hero-input").addEventListener("keydown", (e) => {
+  if ((e as KeyboardEvent).key === "Enter") void runHero();
+});
+document.querySelectorAll<HTMLButtonElement>(".hero-example").forEach((b) =>
+  b.addEventListener("click", () => {
+    $<HTMLInputElement>("hero-input").value = b.dataset.account ?? "";
+    void runHero();
+  }),
+);
+document.querySelectorAll<HTMLAnchorElement>(".hero-link").forEach((a) =>
+  a.addEventListener("click", (e) => {
+    e.preventDefault();
+    openTab(a.hash.slice(1));
   }),
 );
 

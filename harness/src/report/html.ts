@@ -139,6 +139,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--accent)}input[type=fi
 .grid2>div{min-width:0}.scenario code,.repro code{white-space:pre-wrap;word-break:break-word}
 .notice{background:#3d3117;color:var(--warn);border-radius:10px;padding:12px 16px;margin:0 0 16px}
 .summary-line{font-size:15px;margin:8px 0}
+.hero{background:linear-gradient(135deg,#16233d,#121826);border:1px solid #2a3b5f;border-radius:16px;padding:24px;margin:8px 0 8px}.hero h2{margin:0 0 6px;font-size:26px}.hero p{margin:0 0 14px}.hero-row{display:flex;gap:10px;flex-wrap:wrap}.hero-row input{flex:1 1 220px;min-width:0;font-size:17px;padding:12px 14px}.hero-row .btn{font-size:16px;padding:12px 22px}.hero-try{margin-top:8px}.linkbtn{background:none;border:none;color:var(--accent);cursor:pointer;padding:0;font:inherit;text-decoration:underline}.hero-links{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.hero-link{flex:1 1 260px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;color:var(--text);text-decoration:none}.hero-link:hover{border-color:var(--accent)}.hero-link b{color:var(--accent)}.verdict-box{border-radius:12px;padding:16px 18px;margin-top:16px;border:1px solid var(--line);border-left:6px solid var(--line);background:#0c111b}.verdict-box.green{border-left-color:var(--ok)}.verdict-box.yellow{border-left-color:var(--warn)}.verdict-box.red{border-left-color:var(--bad);background:#1a0f12}.verdict-box.missing{border-left-color:var(--muted)}.verdict-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:20px;font-weight:700}.light{width:16px;height:16px;border-radius:50%;flex:none}.light.green{background:var(--ok)}.light.yellow{background:var(--warn)}.light.red{background:var(--bad)}.light.missing{background:var(--muted)}.verdict-box ul{margin:10px 0 8px 20px;padding:0}.verdict-box li{margin:6px 0;line-height:1.45}.verdict-sub{font-size:13px;color:var(--muted);font-weight:400}
 .finding{border-left:4px solid var(--line);background:#090d14;border-radius:8px;padding:9px 12px;margin:8px 0}.finding b{display:block;margin-bottom:2px}.finding.danger{border-left-color:var(--bad);background:#1a0f12}.finding.warn{border-left-color:var(--warn)}.finding.info{border-left-color:var(--info)}.finding.ok{border-left-color:var(--ok)}
 .keys td{font-size:13px}.keys td.mono{word-break:break-all}
 .sim-list{margin:6px 0 10px 18px;padding:0}.sim-list li{margin:4px 0;word-break:break-word}
@@ -153,7 +154,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--accent)}input[type=fi
 export const TAB_SCRIPT =
   'function afTab(name){document.querySelectorAll(".tab-btn").forEach(function(x){x.classList.toggle("active",x.dataset.tab===name)});document.querySelectorAll(".tab-content").forEach(function(x){x.classList.toggle("active",x.id==="tab-"+name)})}' +
   'document.querySelectorAll(".tab-btn").forEach(function(b){b.addEventListener("click",function(){afTab(b.dataset.tab);history.replaceState(null,"","#"+b.dataset.tab)})});' +
-  'function afHash(){var t=location.hash.slice(1);if(t&&document.getElementById("tab-"+t))afTab(t)}' +
+  'function afHash(e){var t=location.hash.slice(1);if(t&&document.getElementById("tab-"+t)){afTab(t);if(e)document.querySelector(".tabs-nav").scrollIntoView({behavior:"smooth"})}}' +
   'if(window.AF_PLAYGROUND){afHash();window.addEventListener("hashchange",afHash)}else afTab("scorecard");';
 
 const REPO_URL = "https://github.com/Richard2606-hub/AgentFuzz";
@@ -197,8 +198,23 @@ export function renderScorecardHtml(sc: Scorecard): string {
 <style>${CSS}</style></head><body><main>
 <header>
   <h1>Agent<span>Fuzz</span></h1>
-  <p class="tag">“Your agent's spending guard says it's safe. AgentFuzz checks.” Fuzz NEAR agent-wallet guards and throw prompt injections at them, in your browser, with the same engine as the CLI.</p>
+  <p class="tag">Free safety checks for every NEAR wallet, and a red-team harness for the guards that protect AI agents' money. “Your agent's spending guard says it's safe. AgentFuzz checks.”</p>
 </header>
+
+<section class="hero" id="hero">
+  <h2>Is my NEAR wallet safe?</h2>
+  <p class="muted">Type your account name. We read it from the NEAR blockchain and tell you, in plain words, who can move your money. No wallet connection, nothing to sign, nothing stored.</p>
+  <div class="hero-row">
+    <input type="text" id="hero-input" placeholder="yourname.near" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="NEAR account name">
+    <button class="btn" id="hero-run" disabled>Check my wallet</button>
+  </div>
+  <div class="small muted hero-try">Try one: <button class="linkbtn hero-example" data-account="wrap-near.near">wrap-near.near</button> (a fake look-alike) · <button class="linkbtn hero-example" data-account="${esc(examples[1] ?? examples[0] ?? "")}">${esc((examples[1] ?? examples[0] ?? "").split(".")[0])}</button> (an AI-agent wallet that failed our tests)</div>
+  <div id="hero-result" aria-live="polite"></div>
+  <div class="hero-links">
+    <a class="hero-link" href="#simulate">Got a transaction to sign? <b>Check what it really does first →</b></a>
+    <a class="hero-link" href="#fuzz">Building AI agents? <b>Test your wallet guard →</b></a>
+  </div>
+</section>
 
 <div class="tabs-nav" role="tablist">
   <button class="tab-btn active" data-tab="fuzz">Fuzz a guard</button>
