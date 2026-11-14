@@ -20,15 +20,43 @@ browser playground (`make web && make serve-web`, or the Pages site), then the N
 
 Tips: `NO_COLOR=1` for plain logs; `--runs 100` makes every command finish in about a second.
 
-## X post draft (edit before posting)
+## X post (274/280 characters; links count as 23)
 
-> Built at NEAR HACKATHON: AgentFuzz, a red-team harness for AI agent wallets. It fuzzes guard
-> contracts + prompt-injects the agent, then scores which safety invariants hold. 7/7 planted bugs
-> found, minimised to replayable repros. Results hashed on NEAR testnet. Try it on your guard:
-> https://github.com/Richard2606-hub/AgentFuzz @NEARProtocol #NEARHackathon
+```
+Built at NEAR HACKATHON: AgentFuzz
 
-Attach the video. Post **before** submitting: the form needs the post's link, and submissions
-can't be edited afterwards.
+AI agents hold money behind guard contracts. AgentFuzz attacks them (fuzzing + prompt injection) and proves it on-chain.
+
+For everyone: "Is my wallet safe?" + simulate before you sign.
+
+https://richard2606-hub.github.io/AgentFuzz
+@NEARProtocol #NEARHackathon
+```
+
+Reply 1 (279/280):
+
+```
+How it works:
+• Real guard wasm runs in nearsim, a NEAR runtime in your browser
+• 6 safety invariants, every break shrunk to a replayable repro
+• 8/8 planted bugs found; reference guard holds 6/6
+• Score hashed on NEAR testnet, anyone can re-run it
+
+Code: https://github.com/Richard2606-hub/AgentFuzz
+```
+
+Reply 2 (253/280):
+
+```
+For everyday NEAR users, free and nothing to sign:
+🟢🟡🔴 type your account → who can move your money, fake look-alike names, risky app keys
+🔍 paste a transaction → see what it really does before you sign
+
+No wallet connection, no cookies, no tracking.
+```
+
+Attach the video to the main post. Post **before** submitting: the form needs the post's link,
+and submissions can't be edited afterwards.
 
 ## Live Testnet Evidence (for submission fields & demo)
 
@@ -51,7 +79,7 @@ can't be edited afterwards.
 - [ ] X post published: "built at NEAR HACKATHON", @NEARProtocol, #NEARHackathon, video attached
 - [ ] Mainnet NEAR payout address ready
 - [ ] Form: tracks = AI Security & Defense, Agent Economy, Open Innovation; description 20–2,000 characters; Website field left empty
-- [ ] Submitted no later than Sat Nov 14, 20:00 MYT (deadline Nov 14, 23:59 UTC)
+- [ ] Submitted before the deadline: Nov 14, 23:59 UTC = Sun Nov 15, 07:59 MYT
 - [ ] Scorecard page kept online through Nov 25 (GitHub Pages workflow `pages.yml`)
 - [ ] On the live Pages site: naive seed 42 / 200 runs shows 6/6 broken, reference 6/6 held, the window-lag upload breaks INV-1, the prompt tab shows 9 breaches on naive (28 scenarios), Check a wallet shows guard-naive broken and guard-reference held, Account safety shows wrap-near.near as a look-alike (danger) and guard-reference as nothing risky, Simulate shows the naive rotate_key adding a full-access key (danger) and the reference payment succeeding, the top box answers green for a normal account and red for wrap-near.near, the Privacy & security notice lists four hosts, and the browser console shows no CSP violations
 - [ ] Re-read the live HACKATHON.md for last-minute rule changes
@@ -67,7 +95,7 @@ and gas-allowance abuse). Six invariants are checked against the chain's own rec
 is shrunk to a minimal, replayable repro. The real contract wasm runs in nearsim, a deterministic
 in-process NEAR runtime, and is confirmed on a near-workspaces sandbox. Results become a
 scorecard whose SHA-256 is anchored in a testnet scoreboard contract; `agentfuzz verify` re-runs
-it and recomputes the hash. All 7 planted bugs are found; the reference guard holds all 6
+it and recomputes the hash. All 8 planted bugs are found; the reference guard holds all 6
 invariants. A static web playground runs the same engine in the browser: fuzz any guard build or
 your own wasm, and run the prompt corpus, with results identical to the CLI. For the agent
 economy, the scoreboard also records an audit per guard build keyed by its code hash, so before an
